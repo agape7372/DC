@@ -186,7 +186,7 @@ section {
 .input-section textarea,
 #inputArea {
     width: 100%;
-    min-height: 120px;
+    min-height: 160px;
     padding: 12px;
     font-family: 'D2Coding', 'Consolas', monospace;
     font-size: 0.75rem;
