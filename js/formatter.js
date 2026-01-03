@@ -383,12 +383,103 @@ const Formatter = (function () {
         };
     }
 
+    /**
+     * 추가오더 + 삭제오더 합쳐서 메신저 양식 생성
+     *
+     * @param {ParsedOrder[]} addOrders - 추가 오더 목록
+     * @param {ParsedOrder[]} deleteOrders - 삭제 오더 목록
+     * @param {Object} settings - 설정
+     * @returns {{output: string, unregisteredPatients: string[]}}
+     */
+    function formatCombinedOutput(addOrders, deleteOrders, settings) {
+        const hasAdd = addOrders && addOrders.length > 0;
+        const hasDelete = deleteOrders && deleteOrders.length > 0;
+
+        if (!hasAdd && !hasDelete) {
+            return {
+                output: '변환할 오더가 없습니다.',
+                unregisteredPatients: []
+            };
+        }
+
+        const lines = [];
+        const unregisteredPatients = new Set();
+
+        // 인사말
+        const floor = settings.floor || '?';
+        const job = settings.job || '치료사';
+        const therapist = settings.therapist || '(이름)';
+
+        lines.push(`안녕하세요, ${floor}층 ${job} ${therapist}입니다.`);
+        lines.push('추가오더 및 삭제오더 명단 보내드립니다.');
+        lines.push('');
+
+        // 날짜
+        const date = settings.date || new Date();
+        const dateStr = formatDateMD(date);
+
+        // ========== 추가 오더 ==========
+        if (hasAdd) {
+            lines.push('[추가 오더]');
+
+            const { evaluation, treatment } = separateByEvaluation(addOrders);
+
+            // 평가 오더 출력 (> 사용)
+            if (evaluation.length > 0) {
+                lines.push(dateStr + ' >');
+                lines.push('');
+                const evalLines = formatOrderSection(evaluation, unregisteredPatients);
+                lines.push(...evalLines);
+            }
+
+            // 치료 오더 출력 (~~>> 사용)
+            if (treatment.length > 0) {
+                lines.push(dateStr + '~~>>');
+                lines.push('');
+                const treatmentLines = formatOrderSection(treatment, unregisteredPatients);
+                lines.push(...treatmentLines);
+            }
+        }
+
+        // ========== 삭제 오더 ==========
+        if (hasDelete) {
+            lines.push('[삭제 오더]');
+
+            const { evaluation, treatment } = separateByEvaluation(deleteOrders);
+
+            // 평가 오더 출력 (> 사용)
+            if (evaluation.length > 0) {
+                lines.push(dateStr + ' >');
+                lines.push('');
+                const evalLines = formatOrderSection(evaluation, unregisteredPatients);
+                lines.push(...evalLines);
+            }
+
+            // 치료 오더 출력 (~~>> 사용)
+            if (treatment.length > 0) {
+                lines.push(dateStr + '~~>>');
+                lines.push('');
+                const treatmentLines = formatOrderSection(treatment, unregisteredPatients);
+                lines.push(...treatmentLines);
+            }
+        }
+
+        // 마무리
+        lines.push('부탁드립니다, 감사합니다!');
+
+        return {
+            output: lines.join('\n'),
+            unregisteredPatients: Array.from(unregisteredPatients)
+        };
+    }
+
     // ========================================
     // Public API
     // ========================================
 
     return {
         formatOutput,
+        formatCombinedOutput,
         groupOrders,
 
         // 유틸리티 노출 (테스트용)
