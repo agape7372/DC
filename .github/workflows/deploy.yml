@@ -2,14 +2,8 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - 'claude/**'
-  pull_request:
-    branches:
-      - main
-      - master
+    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,66 +15,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
 
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-  preview:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/claude/')
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Comment PR with preview info
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            const repoOwner = context.repo.owner;
-            const repoName = context.repo.repo;
-
-            const comment = `## 🔍 미리보기 준비 완료
-
-            이 PR이 머지되면 GitHub Pages에서 확인할 수 있습니다.
-
-            **로컬에서 미리보기:**
-            \`\`\`bash
-            # 이 브랜치를 체크아웃 후
-            npx serve .
-            # 또는
-            python -m http.server 8000
-            \`\`\`
-
-            **테스트 페이지:** \`tests/test.html\`을 브라우저에서 열어 단위 테스트를 실행할 수 있습니다.`;
-
-            github.rest.issues.createComment({
-              owner: repoOwner,
-              repo: repoName,
-              issue_number: prNumber,
-              body: comment
-            });
