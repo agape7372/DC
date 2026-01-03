@@ -18,7 +18,6 @@ const UI = (function () {
         therapistGroup: null,
         dateInput: null,
         dateDisplay: null,
-        periodGroup: null,
         orderTypeGroup: null,
 
         // 입력/출력 요소
@@ -93,7 +92,6 @@ const UI = (function () {
         elements.therapistGroup = document.getElementById('therapistGroup');
         elements.dateInput = document.getElementById('dateInput');
         elements.dateDisplay = document.getElementById('dateDisplay');
-        elements.periodGroup = document.getElementById('periodGroup');
         elements.orderTypeGroup = document.getElementById('orderTypeGroup');
 
         elements.inputArea = document.getElementById('inputArea');
@@ -141,9 +139,6 @@ const UI = (function () {
         if (currentSettings.job) {
             selectButtonInGroup(elements.jobGroup, currentSettings.job);
         }
-        if (currentSettings.period) {
-            selectButtonInGroup(elements.periodGroup, currentSettings.period);
-        }
         if (currentSettings.orderType) {
             selectButtonInGroup(elements.orderTypeGroup, currentSettings.orderType);
         }
@@ -170,7 +165,6 @@ const UI = (function () {
         // 버튼 그룹 이벤트
         bindButtonGroupEvents(elements.floorGroup, 'floor');
         bindButtonGroupEvents(elements.jobGroup, 'job');
-        bindButtonGroupEvents(elements.periodGroup, 'period');
         bindButtonGroupEvents(elements.orderTypeGroup, 'orderType');
 
         // 날짜 변경
@@ -404,7 +398,6 @@ const UI = (function () {
             job: currentSettings.job,
             therapist: currentSettings.therapist,
             date: new Date(elements.dateInput.value + 'T00:00:00'),
-            period: currentSettings.period || PERIOD_TYPE.DAY,
             orderType: currentSettings.orderType || ORDER_TYPE.ADD
         };
 

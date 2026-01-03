@@ -610,7 +610,7 @@
                 TestRunner.assertLength(separated.occupational, 1);
             });
 
-            TestRunner.test('출력 생성 - 기본', () => {
+            TestRunner.test('출력 생성 - 치료 오더 (~~>>)', () => {
                 const orders = [
                     {
                         therapist: '이예지',
@@ -628,14 +628,13 @@
                     job: '물리치료사',
                     therapist: '이예지',
                     date: new Date(2024, 10, 12),
-                    period: 'day',
                     orderType: 'add'
                 };
 
                 const result = Formatter.formatOutput(orders, settings);
                 TestRunner.assertTrue(result.output.includes('3층 물리치료사 이예지'));
                 TestRunner.assertTrue(result.output.includes('[추가 오더]'));
-                TestRunner.assertTrue(result.output.includes('11.12 >'));
+                TestRunner.assertTrue(result.output.includes('11.12~~>>'));  // 치료 오더는 ~~>>
                 TestRunner.assertTrue(result.output.includes('<RM7>'));
                 TestRunner.assertTrue(result.output.includes('회복기 김원순님'));
                 TestRunner.assertLength(result.unregisteredPatients, 0);
@@ -659,13 +658,12 @@
                     job: '물리치료사',
                     therapist: '이예지',
                     date: new Date(2024, 10, 12),
-                    period: 'continuous',
                     orderType: 'delete'
                 };
 
                 const result = Formatter.formatOutput(orders, settings);
                 TestRunner.assertTrue(result.output.includes('[삭제 오더]'));
-                TestRunner.assertTrue(result.output.includes('11.12~~>>'));
+                TestRunner.assertTrue(result.output.includes('11.12~~>>'));  // 치료 오더는 ~~>>
             });
 
             TestRunner.test('출력 생성 - 미등록 환자', () => {
@@ -686,7 +684,6 @@
                     job: '물리치료사',
                     therapist: '이예지',
                     date: new Date(2024, 10, 12),
-                    period: 'day',
                     orderType: 'add'
                 };
 
@@ -694,6 +691,32 @@
                 TestRunner.assertTrue(result.output.includes('<RM?>'));
                 TestRunner.assertLength(result.unregisteredPatients, 1);
                 TestRunner.assertEqual(result.unregisteredPatients[0], '미등록환자');
+            });
+
+            TestRunner.test('출력 생성 - 평가 오더 (>)', () => {
+                const orders = [
+                    {
+                        therapist: '이예지',
+                        patient: '김원순',
+                        code: 'ROM',
+                        unit: null,
+                        therapyType: 'physical',
+                        isEvaluation: true,
+                        hasExtraError: false
+                    }
+                ];
+
+                const settings = {
+                    floor: '3',
+                    job: '물리치료사',
+                    therapist: '이예지',
+                    date: new Date(2024, 10, 12),
+                    orderType: 'add'
+                };
+
+                const result = Formatter.formatOutput(orders, settings);
+                TestRunner.assertTrue(result.output.includes('11.12 >'));  // 평가 오더는 >
+                TestRunner.assertTrue(result.output.includes('ROM'));
             });
 
             TestRunner.test('가산오류와 오더 동시 처리', () => {

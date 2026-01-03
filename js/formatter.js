@@ -242,52 +242,35 @@ const Formatter = (function () {
     // ========================================
 
     /**
-     * 메신저 양식 생성
-     *
-     * @param {ParsedOrder[]} orders - 파싱된 오더 목록
-     * @param {Object} settings - 설정
-     * @param {string} settings.floor - 층
-     * @param {string} settings.job - 직종
-     * @param {string} settings.therapist - 치료사명
-     * @param {Date} settings.date - 날짜
-     * @param {string} settings.period - 기간 (day/continuous)
-     * @param {string} settings.orderType - 구분 (add/delete)
-     * @returns {{output: string, unregisteredPatients: string[]}}
+     * 오더를 평가/치료로 분리
+     * @param {ParsedOrder[]} orders
+     * @returns {{evaluation: ParsedOrder[], treatment: ParsedOrder[]}}
      */
-    function formatOutput(orders, settings) {
-        if (!orders || orders.length === 0) {
-            return {
-                output: '변환할 오더가 없습니다.',
-                unregisteredPatients: []
-            };
+    function separateByEvaluation(orders) {
+        const evaluation = [];
+        const treatment = [];
+
+        for (const order of orders) {
+            if (order.isEvaluation) {
+                evaluation.push(order);
+            } else {
+                treatment.push(order);
+            }
         }
 
+        return { evaluation, treatment };
+    }
+
+    /**
+     * 특정 오더 목록에 대한 RM별 섹션 생성
+     * @param {ParsedOrder[]} orders
+     * @param {Set} unregisteredPatients - 미등록 환자 수집용
+     * @returns {string[]}
+     */
+    function formatOrderSection(orders, unregisteredPatients) {
+        if (orders.length === 0) return [];
+
         const lines = [];
-        const unregisteredPatients = new Set();
-
-        // 인사말
-        const floor = settings.floor || '?';
-        const job = settings.job || '치료사';
-        const therapist = settings.therapist || '(이름)';
-
-        lines.push(`안녕하세요, ${floor}층 ${job} ${therapist}입니다.`);
-        lines.push('추가오더 및 삭제오더 명단 보내드립니다.');
-        lines.push('');
-
-        // 오더 유형 헤더
-        const orderTypeText = settings.orderType === ORDER_TYPE.DELETE
-            ? '[삭제 오더]'
-            : '[추가 오더]';
-        lines.push(orderTypeText);
-
-        // 날짜 및 기간
-        const date = settings.date || new Date();
-        const dateStr = formatDateMD(date);
-        const periodSuffix = settings.period === PERIOD_TYPE.CONTINUOUS ? '~~>>' : ' >';
-        lines.push(dateStr + periodSuffix);
-        lines.push('');
-
-        // RM별 그룹핑
         const groupedOrders = groupOrders(orders);
 
         // 미등록 환자 수집
@@ -323,6 +306,72 @@ const Formatter = (function () {
             }
 
             lines.push('');
+        }
+
+        return lines;
+    }
+
+    /**
+     * 메신저 양식 생성
+     *
+     * 평가 오더는 > (당일), 치료 오더는 ~~>> (계속)으로 자동 분리
+     *
+     * @param {ParsedOrder[]} orders - 파싱된 오더 목록
+     * @param {Object} settings - 설정
+     * @param {string} settings.floor - 층
+     * @param {string} settings.job - 직종
+     * @param {string} settings.therapist - 치료사명
+     * @param {Date} settings.date - 날짜
+     * @param {string} settings.orderType - 구분 (add/delete)
+     * @returns {{output: string, unregisteredPatients: string[]}}
+     */
+    function formatOutput(orders, settings) {
+        if (!orders || orders.length === 0) {
+            return {
+                output: '변환할 오더가 없습니다.',
+                unregisteredPatients: []
+            };
+        }
+
+        const lines = [];
+        const unregisteredPatients = new Set();
+
+        // 인사말
+        const floor = settings.floor || '?';
+        const job = settings.job || '치료사';
+        const therapist = settings.therapist || '(이름)';
+
+        lines.push(`안녕하세요, ${floor}층 ${job} ${therapist}입니다.`);
+        lines.push('추가오더 및 삭제오더 명단 보내드립니다.');
+        lines.push('');
+
+        // 오더 유형 헤더
+        const orderTypeText = settings.orderType === ORDER_TYPE.DELETE
+            ? '[삭제 오더]'
+            : '[추가 오더]';
+        lines.push(orderTypeText);
+
+        // 날짜
+        const date = settings.date || new Date();
+        const dateStr = formatDateMD(date);
+
+        // 평가/치료 오더 분리
+        const { evaluation, treatment } = separateByEvaluation(orders);
+
+        // 평가 오더 출력 (> 사용)
+        if (evaluation.length > 0) {
+            lines.push(dateStr + ' >');
+            lines.push('');
+            const evalLines = formatOrderSection(evaluation, unregisteredPatients);
+            lines.push(...evalLines);
+        }
+
+        // 치료 오더 출력 (~~>> 사용)
+        if (treatment.length > 0) {
+            lines.push(dateStr + '~~>>');
+            lines.push('');
+            const treatmentLines = formatOrderSection(treatment, unregisteredPatients);
+            lines.push(...treatmentLines);
         }
 
         // 마무리
