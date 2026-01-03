@@ -52,24 +52,24 @@
                 <input type="date" id="dateInput" class="date-input">
                 <span class="date-display" id="dateDisplay"></span>
             </div>
-
-            <!-- 구분 선택 -->
-            <div class="setting-row">
-                <label class="setting-label">구분</label>
-                <div class="btn-group" id="orderTypeGroup">
-                    <button type="button" class="btn-option" data-value="add">추가오더</button>
-                    <button type="button" class="btn-option" data-value="delete">삭제오더</button>
-                </div>
-            </div>
         </section>
 
-        <!-- 입력 섹션 -->
+        <!-- 추가오더 입력 섹션 -->
         <section class="input-section">
             <div class="section-header">
-                <h2>입력</h2>
+                <h2>추가오더</h2>
                 <span class="hint">엑셀에서 복사하여 붙여넣기</span>
             </div>
-            <textarea id="inputArea" placeholder="치료사/환자/오더코드/시간&#10;예: 이예지/김원순/M7/11:25-11:55"></textarea>
+            <textarea id="addInputArea" placeholder="치료사/환자/오더코드/시간&#10;예: 이예지/김원순/M7/11:25-11:55"></textarea>
+        </section>
+
+        <!-- 삭제오더 입력 섹션 -->
+        <section class="input-section">
+            <div class="section-header">
+                <h2>삭제오더</h2>
+                <span class="hint">없으면 비워두세요</span>
+            </div>
+            <textarea id="deleteInputArea" placeholder="삭제할 오더가 있으면 입력"></textarea>
         </section>
 
         <!-- 단위 확인 섹션 (숨김 기본) -->

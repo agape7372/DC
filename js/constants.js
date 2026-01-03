@@ -78,8 +78,7 @@ const STORAGE_KEYS = {
 const DEFAULT_SETTINGS = {
     floor: null,
     job: null,
-    therapist: null,
-    orderType: 'add'
+    therapist: null
 };
 
 /**
@@ -265,5 +264,4 @@ function formatDateKorean(date) {
  * @property {string|null} floor - 선택된 층
  * @property {string|null} job - 선택된 직종
  * @property {string|null} therapist - 선택된 치료사
- * @property {string} orderType - 구분 (add/delete)
  */

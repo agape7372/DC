@@ -18,10 +18,10 @@ const UI = (function () {
         therapistGroup: null,
         dateInput: null,
         dateDisplay: null,
-        orderTypeGroup: null,
 
         // 입력/출력 요소
-        inputArea: null,
+        addInputArea: null,
+        deleteInputArea: null,
         outputArea: null,
         convertBtn: null,
         copyBtn: null,
@@ -64,8 +64,10 @@ const UI = (function () {
     // ========================================
 
     let currentSettings = { ...DEFAULT_SETTINGS };
-    let parsedOrders = [];
+    let parsedAddOrders = [];
+    let parsedDeleteOrders = [];
     let unitCheckOrders = [];
+    let currentOrderType = null; // 'add' or 'delete' for unit check
 
     // ========================================
     // 초기화
@@ -92,9 +94,9 @@ const UI = (function () {
         elements.therapistGroup = document.getElementById('therapistGroup');
         elements.dateInput = document.getElementById('dateInput');
         elements.dateDisplay = document.getElementById('dateDisplay');
-        elements.orderTypeGroup = document.getElementById('orderTypeGroup');
 
-        elements.inputArea = document.getElementById('inputArea');
+        elements.addInputArea = document.getElementById('addInputArea');
+        elements.deleteInputArea = document.getElementById('deleteInputArea');
         elements.outputArea = document.getElementById('outputArea');
         elements.convertBtn = document.getElementById('convertBtn');
         elements.copyBtn = document.getElementById('copyBtn');
@@ -139,9 +141,6 @@ const UI = (function () {
         if (currentSettings.job) {
             selectButtonInGroup(elements.jobGroup, currentSettings.job);
         }
-        if (currentSettings.orderType) {
-            selectButtonInGroup(elements.orderTypeGroup, currentSettings.orderType);
-        }
     }
 
     /**
@@ -165,7 +164,6 @@ const UI = (function () {
         // 버튼 그룹 이벤트
         bindButtonGroupEvents(elements.floorGroup, 'floor');
         bindButtonGroupEvents(elements.jobGroup, 'job');
-        bindButtonGroupEvents(elements.orderTypeGroup, 'orderType');
 
         // 날짜 변경
         elements.dateInput.addEventListener('change', updateDateDisplay);
@@ -273,35 +271,44 @@ const UI = (function () {
      * 변환 버튼 클릭 핸들러
      */
     function handleConvert() {
-        const input = elements.inputArea.value.trim();
+        const addInput = elements.addInputArea.value.trim();
+        const deleteInput = elements.deleteInputArea.value.trim();
 
-        if (!input) {
+        if (!addInput && !deleteInput) {
             showToast('입력 내용이 없습니다.', 'warning');
             return;
         }
 
-        // 입력 파싱
-        const result = Parser.parseInput(input);
-
-        if (!result.success) {
-            showToast('파싱 실패: ' + result.errors[0], 'error');
-            return;
+        // 추가오더 파싱
+        parsedAddOrders = [];
+        let addUnitCheck = [];
+        if (addInput) {
+            const addResult = Parser.parseInput(addInput);
+            if (addResult.success || addResult.orders.length > 0) {
+                parsedAddOrders = addResult.orders;
+                addUnitCheck = addResult.needsUnitCheck;
+            }
+            if (addResult.errors.length > 0) {
+                console.warn('추가오더 파싱 에러:', addResult.errors);
+            }
         }
 
-        // 경고 표시
-        if (result.warnings.length > 0) {
-            result.warnings.forEach(w => console.warn(w));
+        // 삭제오더 파싱
+        parsedDeleteOrders = [];
+        let deleteUnitCheck = [];
+        if (deleteInput) {
+            const deleteResult = Parser.parseInput(deleteInput);
+            if (deleteResult.success || deleteResult.orders.length > 0) {
+                parsedDeleteOrders = deleteResult.orders;
+                deleteUnitCheck = deleteResult.needsUnitCheck;
+            }
+            if (deleteResult.errors.length > 0) {
+                console.warn('삭제오더 파싱 에러:', deleteResult.errors);
+            }
         }
 
-        // 에러 표시 (일부 성공 시)
-        if (result.errors.length > 0) {
-            showToast(`${result.errors.length}개 라인 파싱 실패`, 'warning');
-        }
-
-        parsedOrders = result.orders;
-        unitCheckOrders = result.needsUnitCheck;
-
-        // 단위 확인 필요 여부
+        // 단위 확인 필요 여부 (추가오더만 - 삭제오더는 단위 무시)
+        unitCheckOrders = addUnitCheck;
         if (unitCheckOrders.length > 0) {
             showUnitCheckSection();
         } else {
@@ -382,8 +389,8 @@ const UI = (function () {
             unitMap[key] = order.unit || DEFAULT_UNIT;
         });
 
-        // 단위 적용
-        parsedOrders = Parser.applyUnits(parsedOrders, unitMap);
+        // 단위 적용 (추가오더에만)
+        parsedAddOrders = Parser.applyUnits(parsedAddOrders, unitMap);
 
         hideUnitCheckSection();
         generateOutput();
@@ -397,11 +404,10 @@ const UI = (function () {
             floor: currentSettings.floor,
             job: currentSettings.job,
             therapist: currentSettings.therapist,
-            date: new Date(elements.dateInput.value + 'T00:00:00'),
-            orderType: currentSettings.orderType || ORDER_TYPE.ADD
+            date: new Date(elements.dateInput.value + 'T00:00:00')
         };
 
-        const result = Formatter.formatOutput(parsedOrders, settings);
+        const result = Formatter.formatCombinedOutput(parsedAddOrders, parsedDeleteOrders, settings);
         elements.outputArea.textContent = result.output;
 
         // 미등록 환자 경고

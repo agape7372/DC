@@ -186,10 +186,10 @@ section {
 .input-section textarea,
 #inputArea {
     width: 100%;
-    min-height: 150px;
+    min-height: 160px;
     padding: 12px;
     font-family: 'D2Coding', 'Consolas', monospace;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     resize: vertical;
