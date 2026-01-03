@@ -1,0 +1,17 @@
+{
+  "name": "order-management-app",
+  "version": "1.0.0",
+  "description": "병원 치료사용 오더정리 웹 앱",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve . -l 3000",
+    "test": "echo \"Open tests/test.html in browser to run tests\""
+  },
+  "keywords": [
+    "hospital",
+    "order-management",
+    "healthcare"
+  ],
+  "author": "",
+  "license": "MIT"
+}
