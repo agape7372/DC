@@ -28,7 +28,7 @@ const OCCUPATIONAL_THERAPY_CODES = {
     // 일반 오더
     general: ['A', 'C', 'CA', 'D', 'H', 'H7', 'O7', 'RA', 'RD', 'RS', 'S', 'V', 'Y'],
     // 평가 오더 (하루 1회)
-    evaluation: ['PHQ-9', 'CDR', 'MMSE', 'HAND', 'MBI', 'SNSB', '전산화인지']
+    evaluation: ['PHQ-9', 'CDR', 'MMSE', 'HAND', 'MBI', 'SNSB', 'VFSS', '전산화인지']
 };
 
 /**
