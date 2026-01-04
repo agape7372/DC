@@ -255,37 +255,42 @@ const Parser = (function () {
                 continue;
             }
 
-            // 2. 오더 코드 패턴? (콤마/공백으로 여러 개일 수 있음)
-            const potentialCodes = cleanField.split(/[,\s]+/).filter(c => c);
-            const allAreCodes = potentialCodes.length > 0 &&
-                               potentialCodes.every(c => isOrderCodePattern(c));
+            // 2. 필드를 공백/콤마로 분리해서 개별 분석
+            const subParts = cleanField.split(/[,\s]+/).filter(c => c);
 
-            if (allAreCodes) {
-                for (const code of potentialCodes) {
-                    orderCodes.push(...splitOrderCodes(code));
+            for (const part of subParts) {
+                // 시간 패턴?
+                if (isTimePattern(part)) {
+                    time = part;
+                    continue;
                 }
-                continue;
-            }
 
-            // 3. 환자명?
-            if (!patient && isPatientName(cleanField)) {
-                patient = cleanField;
-                continue;
-            }
-
-            // 4. 한글 2-4자면 이름으로 추정
-            if (/^[가-힣]{2,4}$/.test(cleanField)) {
-                if (!patient) {
-                    patient = cleanField;
-                } else if (!therapist) {
-                    therapist = cleanField;
+                // 오더 코드?
+                if (isOrderCodePattern(part)) {
+                    orderCodes.push(...splitOrderCodes(part));
+                    continue;
                 }
-                continue;
-            }
 
-            // 5. 그 외는 무시 (또는 치료사로 저장)
-            if (!therapist) {
-                therapist = cleanField;
+                // 환자명?
+                if (!patient && isPatientName(part)) {
+                    patient = part;
+                    continue;
+                }
+
+                // 한글 2-4자면 이름으로 추정
+                if (/^[가-힣]{2,4}$/.test(part)) {
+                    if (!patient) {
+                        patient = part;
+                    } else if (!therapist) {
+                        therapist = part;
+                    }
+                    continue;
+                }
+
+                // 그 외는 치료사로 저장
+                if (!therapist) {
+                    therapist = part;
+                }
             }
         }
 
