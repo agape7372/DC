@@ -74,7 +74,7 @@ const Formatter = (function () {
             // 환자 정보 조회
             const patient = Storage.getPatientByName(order.patient);
             const room = patient?.room || 'RM?';
-            const ward = patient?.ward || '미등록';
+            const ward = patient?.ward || '';
 
             // RM 그룹
             if (!roomMap.has(room)) {
@@ -192,10 +192,11 @@ const Formatter = (function () {
      */
     function formatPatientLine(patientName, ward, orders, hasExtraError) {
         const lines = [];
+        const wardPrefix = ward ? `${ward} ` : '';
 
         // 가산오류만 있는 경우
         if (hasExtraError && orders.length === 0) {
-            return `${ward} ${patientName}님 가산오류 있습니다.`;
+            return `${wardPrefix}${patientName}님 가산오류 있습니다.`;
         }
 
         const { physical, occupational } = separateByTherapyType(orders);
@@ -226,12 +227,12 @@ const Formatter = (function () {
                 codeText = formatOrderCodes(occupational);
             }
 
-            lines.push(`${ward} ${patientName}님 ${therapyText} - ${codeText}`);
+            lines.push(`${wardPrefix}${patientName}님 ${therapyText} - ${codeText}`);
         }
 
         // 가산오류가 있으면 별도 라인으로 추가
         if (hasExtraError) {
-            lines.push(`${ward} ${patientName}님 가산오류 있습니다.`);
+            lines.push(`${wardPrefix}${patientName}님 가산오류 있습니다.`);
         }
 
         return lines.join('\n');
