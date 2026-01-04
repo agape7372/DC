@@ -186,7 +186,7 @@ section {
 .input-section textarea,
 #inputArea {
     width: 100%;
-    min-height: 160px;
+    min-height: 120px;
     padding: 12px;
     font-family: 'D2Coding', 'Consolas', monospace;
     font-size: 0.75rem;
@@ -194,6 +194,14 @@ section {
     border-radius: var(--radius-md);
     resize: vertical;
     transition: var(--transition);
+}
+
+#addInputArea {
+    min-height: 200px;
+}
+
+#deleteInputArea {
+    min-height: 80px;
 }
 
 #inputArea:focus {
@@ -274,7 +282,7 @@ section {
     background: var(--bg-color);
     border-radius: var(--radius-md);
     font-family: 'D2Coding', 'Consolas', monospace;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.8;
