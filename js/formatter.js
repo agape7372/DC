@@ -167,7 +167,7 @@ const Formatter = (function () {
             }
         }
 
-        return codeParts.join(' ');
+        return codeParts.join(', ');
     }
 
     // ========================================
@@ -208,7 +208,7 @@ const Formatter = (function () {
             // 치료 유형 텍스트
             let therapyText = '';
             if (hasPhysical && hasOccupational) {
-                therapyText = '운동/작업';
+                therapyText = '운동 / 작업';
             } else if (hasPhysical) {
                 therapyText = '운동';
             } else if (hasOccupational) {
