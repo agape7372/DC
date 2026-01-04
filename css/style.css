@@ -189,7 +189,7 @@ section {
     min-height: 120px;
     padding: 12px;
     font-family: 'D2Coding', 'Consolas', monospace;
-    font-size: 0.75rem;
+    font-size: 11px;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     resize: vertical;
@@ -282,7 +282,7 @@ section {
     background: var(--bg-color);
     border-radius: var(--radius-md);
     font-family: 'D2Coding', 'Consolas', monospace;
-    font-size: 0.75rem;
+    font-size: 11px;
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.8;
