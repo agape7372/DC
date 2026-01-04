@@ -373,10 +373,11 @@ const Parser = (function () {
                 for (const order of lineResult.orders) {
                     result.orders.push(order);
 
-                    // 단위 확인 필요
+                    // 단위 확인 필요 (평가, 비급여, 스킵 코드 제외)
                     if (order.unit === null &&
                         !isNonReimbursableCode(order.code) &&
-                        !order.isEvaluation) {
+                        !order.isEvaluation &&
+                        !SKIP_UNIT_CHECK_CODES.includes(order.code)) {
                         result.needsUnitCheck.push(order);
                     }
                 }

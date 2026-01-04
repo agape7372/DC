@@ -26,10 +26,15 @@ const PHYSICAL_THERAPY_CODES = {
  */
 const OCCUPATIONAL_THERAPY_CODES = {
     // 일반 오더
-    general: ['A', 'C', 'CA', 'D', 'H', 'H7', 'O7', 'RA', 'RD', 'RS', 'S', 'V', 'Y'],
+    general: ['A', 'C', 'CA', 'D', 'H', 'H7', 'O7', 'RA', 'RD', 'RS', 'S', 'V', 'Y', '전산화인지'],
     // 평가 오더 (하루 1회)
-    evaluation: ['PHQ-9', 'CDR', 'MMSE', 'HAND', 'MBI', 'SNSB', 'VFSS', '전산화인지']
+    evaluation: ['PHQ-9', 'CDR', 'MMSE', 'HAND', 'MBI', 'SNSB', 'VFSS']
 };
+
+/**
+ * 단위 확인 스킵 오더 (평가 아니지만 단위 확인 불필요)
+ */
+const SKIP_UNIT_CHECK_CODES = ['전산화인지'];
 
 /**
  * 비급여 오더 코드 (숫자가 코드의 일부인 오더)
