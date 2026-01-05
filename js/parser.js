@@ -131,6 +131,8 @@ const Parser = (function () {
 
     /**
      * 복합 오더 코드 분리
+     * CA → C1, A1 (숫자 없으면 기본 1단위)
+     * C2A1 → C2, A1
      */
     function expandCompoundCode(code) {
         if (!code) return [];
@@ -154,7 +156,13 @@ const Parser = (function () {
             });
 
             if (allValid) {
-                return matches.map(m => m[0]).filter(c => c.length > 0);
+                // 숫자가 하나도 없으면 각각 1단위로 처리
+                const hasAnyNumber = matches.some(m => m[2] && m[2].length > 0);
+                return matches.map(m => {
+                    const codeOnly = m[1];
+                    const unit = m[2] || (hasAnyNumber ? '' : '1');
+                    return codeOnly + unit;
+                }).filter(c => c.length > 0);
             }
         }
 
