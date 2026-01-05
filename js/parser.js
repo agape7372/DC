@@ -176,24 +176,34 @@ const Parser = (function () {
             return { code: '', unit: null, raw: '' };
         }
 
-        const trimmedCode = rawCode.trim().toUpperCase();
+        const trimmedCode = rawCode.trim();
+        const upperCode = trimmedCode.toUpperCase();
 
         // 비급여 코드
-        if (isNonReimbursableCode(trimmedCode)) {
-            return { code: trimmedCode, unit: 1, raw: trimmedCode };
+        if (isNonReimbursableCode(upperCode)) {
+            return { code: upperCode, unit: 1, raw: upperCode };
+        }
+
+        // 전산화인지 특별 처리: 숫자 없으면 기본 1단위
+        if (trimmedCode.startsWith('전산화인지')) {
+            const unitMatch = trimmedCode.match(/전산화인지(\d+)?$/);
+            if (unitMatch) {
+                const unit = unitMatch[1] ? parseInt(unitMatch[1], 10) : 1;
+                return { code: '전산화인지', unit: unit, raw: '전산화인지' + unit };
+            }
         }
 
         // 일반 코드: 숫자 분리
-        const match = trimmedCode.match(PATTERNS.ORDER_CODE);
+        const match = upperCode.match(PATTERNS.ORDER_CODE);
         if (!match) {
-            return { code: trimmedCode, unit: null, raw: trimmedCode };
+            return { code: upperCode, unit: null, raw: upperCode };
         }
 
         const [, codeOnly, unitStr] = match;
         return {
             code: codeOnly,
             unit: unitStr ? parseInt(unitStr, 10) : null,
-            raw: trimmedCode
+            raw: upperCode
         };
     }
 
