@@ -131,7 +131,7 @@ const Parser = (function () {
 
     /**
      * 복합 오더 코드 분리
-     * CA → C1, A1 (숫자 없으면 기본 1단위)
+     * CA → C1, A1 (CA만 특별히 숫자 없으면 기본 1단위)
      * C2A1 → C2, A1
      */
     function expandCompoundCode(code) {
@@ -142,6 +142,11 @@ const Parser = (function () {
         // 비급여/평가 코드는 분리하지 않음
         if (isNonReimbursableCode(upperCode) || isEvaluationCode(upperCode)) {
             return [upperCode];
+        }
+
+        // CA 특별 처리: 숫자 없으면 C1A1로
+        if (upperCode === 'CA') {
+            return ['C1', 'A1'];
         }
 
         // 복합 코드 패턴
@@ -156,13 +161,7 @@ const Parser = (function () {
             });
 
             if (allValid) {
-                // 숫자가 하나도 없으면 각각 1단위로 처리
-                const hasAnyNumber = matches.some(m => m[2] && m[2].length > 0);
-                return matches.map(m => {
-                    const codeOnly = m[1];
-                    const unit = m[2] || (hasAnyNumber ? '' : '1');
-                    return codeOnly + unit;
-                }).filter(c => c.length > 0);
+                return matches.map(m => m[0]).filter(c => c.length > 0);
             }
         }
 
