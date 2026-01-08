@@ -106,28 +106,6 @@ const PatientManager = (function () {
     }
 
     /**
-     * 헤더 행에서 환자명 열 인덱스 찾기
-     * @param {Array<Array<string>>} data - 엑셀 데이터
-     * @returns {{headerRow: number, nameCol: number}|null}
-     */
-    function findNameColumnIndex(data) {
-        // 처음 10행 내에서 헤더 찾기
-        for (let i = 0; i < Math.min(10, data.length); i++) {
-            const row = data[i];
-            if (!row) continue;
-
-            for (let j = 0; j < row.length; j++) {
-                const cell = (row[j] || '').toString().toLowerCase();
-                // "이름" 또는 "환자명" 열 찾기
-                if (cell === '이름' || cell === '환자명' || cell === '성명' || cell === 'name') {
-                    return { headerRow: i, nameCol: j };
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
      * 엑셀 데이터 파싱
      *
      * 지원하는 형식:

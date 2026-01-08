@@ -142,6 +142,23 @@ const PATTERNS = {
 // ========================================
 
 /**
+ * HTML 특수문자 이스케이프 (XSS 방지)
+ * @param {string} str - 이스케이프할 문자열
+ * @returns {string}
+ */
+function escapeHtml(str) {
+    if (!str) return '';
+    const escapeMap = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    };
+    return str.replace(/[&<>"']/g, char => escapeMap[char]);
+}
+
+/**
  * 오더 코드가 비급여 코드인지 확인
  * @param {string} code - 오더 코드
  * @returns {boolean}
