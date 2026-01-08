@@ -261,6 +261,16 @@ const Parser = (function () {
         let time = null;
         let therapist = null;
 
+        // "/" 구분자이고 첫 필드가 순수 이름이면 치료사/환자 형식으로 판단
+        const isSlashFormat = delimiter === '/' && fields.length >= 2;
+        const firstFieldIsOnlyName = isSlashFormat &&
+            /^[가-힣]{2,4}$/.test(fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim());
+
+        if (firstFieldIsOnlyName) {
+            therapist = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
+            fields = fields.slice(1); // 첫 필드(치료사) 제거
+        }
+
         for (const field of fields) {
             // 가산오류 텍스트 제거
             const cleanField = field.replace(PATTERNS.EXTRA_ERROR, '').trim();
