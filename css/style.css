@@ -295,6 +295,32 @@ section {
     color: var(--text-muted);
 }
 
+.output-area:focus {
+    outline: none;
+    border: 1px solid var(--primary-color);
+}
+
+.output-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-sort {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    background: var(--card-bg);
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-sort:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
 .btn-copy {
     padding: 6px 12px;
     font-size: 0.75rem;
