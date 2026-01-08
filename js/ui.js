@@ -779,7 +779,13 @@ const UI = (function () {
 
         try {
             const result = await PatientManager.uploadAndPreview(file);
-            showPatientPreviewModal(result);
+            // 미리보기 없이 바로 적용
+            const success = PatientManager.applyPendingPatients();
+            if (success) {
+                updatePatientCount();
+                const totalCount = result.added.length + result.modified.length + result.existing.length;
+                showToast(`환자 ${totalCount}명 등록 완료 (추가: ${result.added.length}, 수정: ${result.modified.length})`, 'success');
+            }
         } catch (error) {
             console.error('엑셀 업로드 오류:', error);
             showToast(error.message, 'error');
