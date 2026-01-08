@@ -48,12 +48,27 @@ const Parser = (function () {
     }
 
     /**
+     * 괄호 안 시간 제거: M(10:15-10:45) → M
+     * @param {string} str
+     * @returns {string}
+     */
+    function removeTimeInParens(str) {
+        return str.replace(/\(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?\)$/g, '');
+    }
+
+    /**
      * 오더 코드 패턴인지 확인
      * @param {string} str
      * @returns {boolean}
      */
     function isOrderCodePattern(str) {
-        const upper = str.trim().toUpperCase();
+        const trimmed = str.trim();
+        if (!trimmed) return false;
+
+        // 괄호 안 시간 제거: M(10:15-10:45) → M
+        const withoutTime = removeTimeInParens(trimmed);
+        const upper = withoutTime.toUpperCase();
+
         if (!upper) return false;
 
         // 비급여 코드
@@ -122,7 +137,9 @@ const Parser = (function () {
         // 복합 오더 분리
         const expandedCodes = [];
         for (const code of rawCodes) {
-            const expanded = expandCompoundCode(code);
+            // 괄호 안 시간 제거: M(10:15-10:45) → M
+            const codeWithoutTime = removeTimeInParens(code);
+            const expanded = expandCompoundCode(codeWithoutTime);
             expandedCodes.push(...expanded);
         }
 
