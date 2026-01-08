@@ -96,8 +96,8 @@ const Parser = (function () {
         const patient = Storage.getPatientByName(trimmed);
         if (patient) return true;
 
-        // 한글 이름 패턴 (2-4자) - 오더 코드 아닌 경우
-        if (/^[가-힣]{2,4}$/.test(trimmed) && !isOrderCodePattern(trimmed)) {
+        // 한글 이름 패턴 (2-4자 + 동명이인 숫자) - 오더 코드 아닌 경우
+        if (/^[가-힣]{2,4}\d*$/.test(trimmed) && !isOrderCodePattern(trimmed)) {
             return true;
         }
 
@@ -304,8 +304,8 @@ const Parser = (function () {
                     continue;
                 }
 
-                // 한글 2-4자면 이름으로 추정
-                if (/^[가-힣]{2,4}$/.test(part)) {
+                // 한글 2-4자(+동명이인 숫자)면 이름으로 추정
+                if (/^[가-힣]{2,4}\d*$/.test(part)) {
                     if (!patient) {
                         patient = part;
                     } else if (!therapist) {
