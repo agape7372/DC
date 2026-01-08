@@ -20,6 +20,19 @@ const PatientManager = (function () {
     // ========================================
 
     /**
+     * 시트 이름에서 전문/회복기 감지
+     * @param {string} sheetName - 시트 이름
+     * @returns {string} - '전문', '회복기', 또는 빈 문자열
+     */
+    function detectWardFromSheetName(sheetName) {
+        if (!sheetName) return '';
+        const name = sheetName.toLowerCase();
+        if (name.includes('전문')) return '전문';
+        if (name.includes('회복')) return '회복기';
+        return '';
+    }
+
+    /**
      * 엑셀 파일 읽기
      *
      * @param {File} file - 업로드된 파일
@@ -58,18 +71,26 @@ const PatientManager = (function () {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
 
-                    // 첫 번째 시트 사용
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+                    // 모든 시트에서 환자 데이터 수집
+                    const allPatients = [];
 
-                    // 시트를 JSON으로 변환
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-                        header: 1, // 배열 형태로
-                        defval: '' // 빈 셀 기본값
-                    });
+                    for (const sheetName of workbook.SheetNames) {
+                        const worksheet = workbook.Sheets[sheetName];
 
-                    const patients = parseExcelData(jsonData);
-                    resolve(patients);
+                        // 시트 이름에서 전문/회복기 감지
+                        const wardFromSheet = detectWardFromSheetName(sheetName);
+
+                        // 시트를 JSON으로 변환
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                            header: 1, // 배열 형태로
+                            defval: '' // 빈 셀 기본값
+                        });
+
+                        const patients = parseExcelData(jsonData, wardFromSheet);
+                        allPatients.push(...patients);
+                    }
+
+                    resolve(allPatients);
                 } catch (error) {
                     console.error('엑셀 파싱 오류:', error);
                     reject(new Error('엑셀 파일을 읽는 중 오류가 발생했습니다.'));
@@ -85,40 +106,118 @@ const PatientManager = (function () {
     }
 
     /**
+     * 헤더 행에서 환자명 열 인덱스 찾기
+     * @param {Array<Array<string>>} data - 엑셀 데이터
+     * @returns {{headerRow: number, nameCol: number}|null}
+     */
+    function findNameColumnIndex(data) {
+        // 처음 10행 내에서 헤더 찾기
+        for (let i = 0; i < Math.min(10, data.length); i++) {
+            const row = data[i];
+            if (!row) continue;
+
+            for (let j = 0; j < row.length; j++) {
+                const cell = (row[j] || '').toString().toLowerCase();
+                // "이름" 또는 "환자명" 열 찾기
+                if (cell === '이름' || cell === '환자명' || cell === '성명' || cell === 'name') {
+                    return { headerRow: i, nameCol: j };
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * 엑셀 데이터 파싱
      *
      * 지원하는 형식:
-     * 1. 한 셀에 모든 정보: "환자명, 병동구분, RM번호"
-     * 2. 여러 열: [환자명] [병동구분] [RM번호]
+     * 1. 헤더 기반: "이름" 또는 "환자명" 열 자동 감지
+     * 2. 섹션별 ward 감지: "회복기 종료 90일 미만" → 전문으로 취급
      *
      * @param {Array<Array<string>>} data - 엑셀 데이터 (2D 배열)
+     * @param {string} defaultWard - 시트에서 감지된 기본 병동 (전문/회복기)
      * @returns {Array<Patient>}
      */
-    function parseExcelData(data) {
+    function parseExcelData(data, defaultWard = '') {
         const patients = [];
 
         if (!data || data.length === 0) {
             return patients;
         }
 
-        // 헤더 행 감지 (첫 번째 행에 "환자" 또는 "이름" 포함 시 스킵)
-        let startRow = 0;
-        if (data[0] && typeof data[0][0] === 'string') {
-            const firstCell = data[0][0].toString().toLowerCase();
-            if (firstCell.includes('환자') ||
-                firstCell.includes('이름') ||
-                firstCell.includes('name')) {
-                startRow = 1;
-            }
-        }
+        // 섹션별 ward 추적 (회복기 시트 내 "회복기 종료 90일 미만" 섹션은 전문으로)
+        let currentWard = defaultWard;
+        let currentNameCol = -1;
 
-        for (let i = startRow; i < data.length; i++) {
+        for (let i = 0; i < data.length; i++) {
             const row = data[i];
             if (!row || row.length === 0) continue;
 
-            const patient = parsePatientRow(row);
-            if (patient) {
-                patients.push(patient);
+            const rowText = row.map(c => (c || '').toString()).join(' ');
+
+            // 섹션 헤더 감지: "회복기 종료" 포함 시 전문으로 변경
+            if (rowText.includes('회복기 종료') || rowText.includes('90일 미만 대상자')) {
+                currentWard = '전문';
+                continue;
+            }
+
+            // 새로운 섹션 시작 감지 (일반 회복기 섹션)
+            // 괄호+숫자 패턴의 섹션 헤더 (예: "중추신경계(14)", "근골격계 60일 (2)")
+            // "회복기 종료"가 아닌 다른 섹션은 defaultWard로 복원
+            if (defaultWard === '회복기' && /[가-힣]+.*\(\d+\)/.test(rowText) &&
+                !rowText.includes('종료')) {
+                currentWard = '회복기';
+            }
+
+            // 환자명 열 헤더 찾기
+            let foundHeader = false;
+            for (let j = 0; j < row.length; j++) {
+                const cell = (row[j] || '').toString().trim();
+                if (cell === '이름' || cell === '환자명' || cell === '성명') {
+                    currentNameCol = j;
+                    foundHeader = true;
+                    break;
+                }
+            }
+            if (foundHeader) continue; // 헤더 행은 스킵
+
+            // 환자명 열이 아직 감지 안됨
+            if (currentNameCol < 0) continue;
+
+            // 데이터 행에서 환자명 추출
+            const name = (row[currentNameCol] || '').toString().trim();
+            if (!name) continue;
+
+            // 숫자만 있는 행 스킵 (인덱스 행)
+            if (/^\d+$/.test(name)) continue;
+
+            patients.push({
+                name: name,
+                ward: currentWard,
+                room: ''
+            });
+        }
+
+        // 헤더 기반 파싱 실패 시 기존 방식 사용
+        if (patients.length === 0) {
+            let startRow = 0;
+            if (data[0] && typeof data[0][0] === 'string') {
+                const firstCell = data[0][0].toString().toLowerCase();
+                if (firstCell.includes('환자') ||
+                    firstCell.includes('이름') ||
+                    firstCell.includes('name')) {
+                    startRow = 1;
+                }
+            }
+
+            for (let i = startRow; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.length === 0) continue;
+
+                const patient = parsePatientRow(row, defaultWard);
+                if (patient) {
+                    patients.push(patient);
+                }
             }
         }
 
@@ -129,9 +228,10 @@ const PatientManager = (function () {
      * 단일 행에서 환자 정보 파싱
      *
      * @param {Array<string>} row - 행 데이터
+     * @param {string} defaultWard - 시트에서 감지된 기본 병동
      * @returns {Patient|null}
      */
-    function parsePatientRow(row) {
+    function parsePatientRow(row, defaultWard = '') {
         if (!row || row.length === 0) return null;
 
         let name = '';
@@ -175,8 +275,8 @@ const PatientManager = (function () {
         // RM 번호 정규화
         room = normalizeRoomNumber(room);
 
-        // 병동 정규화
-        ward = normalizeWard(ward);
+        // 병동 정규화 (행 데이터 우선, 없으면 시트 이름에서 감지된 값 사용)
+        ward = normalizeWard(ward) || defaultWard;
 
         return { name, ward, room };
     }
