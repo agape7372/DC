@@ -106,11 +106,34 @@ const PatientManager = (function () {
     }
 
     /**
+     * 헤더 행에서 환자명 열 인덱스 찾기
+     * @param {Array<Array<string>>} data - 엑셀 데이터
+     * @returns {{headerRow: number, nameCol: number}|null}
+     */
+    function findNameColumnIndex(data) {
+        // 처음 10행 내에서 헤더 찾기
+        for (let i = 0; i < Math.min(10, data.length); i++) {
+            const row = data[i];
+            if (!row) continue;
+
+            for (let j = 0; j < row.length; j++) {
+                const cell = (row[j] || '').toString().toLowerCase();
+                // "이름" 또는 "환자명" 열 찾기
+                if (cell === '이름' || cell === '환자명' || cell === '성명' || cell === 'name') {
+                    return { headerRow: i, nameCol: j };
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * 엑셀 데이터 파싱
      *
      * 지원하는 형식:
-     * 1. 한 셀에 모든 정보: "환자명, 병동구분, RM번호"
-     * 2. 여러 열: [환자명] [병동구분] [RM번호]
+     * 1. 헤더 기반: "이름" 또는 "환자명" 열 자동 감지
+     * 2. 한 셀에 모든 정보: "환자명, 병동구분, RM번호"
+     * 3. 여러 열: [환자명] [병동구분] [RM번호]
      *
      * @param {Array<Array<string>>} data - 엑셀 데이터 (2D 배열)
      * @param {string} defaultWard - 시트에서 감지된 기본 병동 (전문/회복기)
@@ -123,24 +146,49 @@ const PatientManager = (function () {
             return patients;
         }
 
-        // 헤더 행 감지 (첫 번째 행에 "환자" 또는 "이름" 포함 시 스킵)
-        let startRow = 0;
-        if (data[0] && typeof data[0][0] === 'string') {
-            const firstCell = data[0][0].toString().toLowerCase();
-            if (firstCell.includes('환자') ||
-                firstCell.includes('이름') ||
-                firstCell.includes('name')) {
-                startRow = 1;
+        // 헤더 기반 환자명 열 찾기
+        const columnInfo = findNameColumnIndex(data);
+
+        if (columnInfo) {
+            // 헤더 기반 파싱
+            const { headerRow, nameCol } = columnInfo;
+
+            for (let i = headerRow + 1; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.length === 0) continue;
+
+                const name = (row[nameCol] || '').toString().trim();
+                if (!name) continue;
+
+                // 숫자만 있는 행 스킵 (인덱스 행)
+                if (/^\d+$/.test(name)) continue;
+
+                patients.push({
+                    name: name,
+                    ward: defaultWard,
+                    room: ''
+                });
             }
-        }
+        } else {
+            // 기존 방식: 첫 번째 열에서 이름 추출
+            let startRow = 0;
+            if (data[0] && typeof data[0][0] === 'string') {
+                const firstCell = data[0][0].toString().toLowerCase();
+                if (firstCell.includes('환자') ||
+                    firstCell.includes('이름') ||
+                    firstCell.includes('name')) {
+                    startRow = 1;
+                }
+            }
 
-        for (let i = startRow; i < data.length; i++) {
-            const row = data[i];
-            if (!row || row.length === 0) continue;
+            for (let i = startRow; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.length === 0) continue;
 
-            const patient = parsePatientRow(row, defaultWard);
-            if (patient) {
-                patients.push(patient);
+                const patient = parsePatientRow(row, defaultWard);
+                if (patient) {
+                    patients.push(patient);
+                }
             }
         }
 
