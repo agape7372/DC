@@ -132,7 +132,9 @@ const PatientManager = (function () {
      *
      * 지원하는 형식:
      * 1. 헤더 기반: "이름" 또는 "환자명" 열 자동 감지
-     * 2. 섹션별 ward 감지: "회복기 종료 90일 미만" → 전문으로 취급
+     * 2. 섹션별 ward 감지: "회복기 종료 90일 미만" → 비고 열 확인
+     *    - 비고 = "종료" → 전문
+     *    - 비고 = "연장" → 회복기
      *
      * @param {Array<Array<string>>} data - 엑셀 데이터 (2D 배열)
      * @param {string} defaultWard - 시트에서 감지된 기본 병동 (전문/회복기)
@@ -145,9 +147,11 @@ const PatientManager = (function () {
             return patients;
         }
 
-        // 섹션별 ward 추적 (회복기 시트 내 "회복기 종료 90일 미만" 섹션은 전문으로)
+        // 섹션별 ward 추적
         let currentWard = defaultWard;
         let currentNameCol = -1;
+        let inTerminationSection = false; // "회복기 종료 90일 미만" 섹션 내부인지
+        let remarkCol = -1; // 비고 열 인덱스
 
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
@@ -155,18 +159,22 @@ const PatientManager = (function () {
 
             const rowText = row.map(c => (c || '').toString()).join(' ');
 
-            // 섹션 헤더 감지: "회복기 종료" 포함 시 전문으로 변경
-            if (rowText.includes('회복기 종료') || rowText.includes('90일 미만 대상자')) {
-                currentWard = '전문';
+            // 섹션 헤더 감지: "회복기 종료" + "90일" 또는 "대상자" 포함
+            // (헤더 행의 "청구기간 (90)" 등과 구분하기 위해 조건 강화)
+            if (rowText.includes('회복기 종료') &&
+                (rowText.includes('90일') || rowText.includes('대상자'))) {
+                inTerminationSection = true;
+                remarkCol = -1; // 비고 열 리셋
                 continue;
             }
 
             // 새로운 섹션 시작 감지 (일반 회복기 섹션)
             // 괄호+숫자 패턴의 섹션 헤더 (예: "중추신경계(14)", "근골격계 60일 (2)")
-            // "회복기 종료"가 아닌 다른 섹션은 defaultWard로 복원
             if (defaultWard === '회복기' && /[가-힣]+.*\(\d+\)/.test(rowText) &&
-                !rowText.includes('종료')) {
+                !rowText.includes('종료') && !rowText.includes('90일 미만')) {
                 currentWard = '회복기';
+                inTerminationSection = false;
+                remarkCol = -1;
             }
 
             // 환자명 열 헤더 찾기
@@ -176,7 +184,10 @@ const PatientManager = (function () {
                 if (cell === '이름' || cell === '환자명' || cell === '성명') {
                     currentNameCol = j;
                     foundHeader = true;
-                    break;
+                }
+                // 비고 열 찾기 (회복기 종료 섹션에서만)
+                if (inTerminationSection && cell === '비고') {
+                    remarkCol = j;
                 }
             }
             if (foundHeader) continue; // 헤더 행은 스킵
@@ -191,9 +202,22 @@ const PatientManager = (function () {
             // 숫자만 있는 행 스킵 (인덱스 행)
             if (/^\d+$/.test(name)) continue;
 
+            // ward 결정
+            let ward = currentWard;
+            if (inTerminationSection && remarkCol >= 0) {
+                const remark = (row[remarkCol] || '').toString().trim();
+                if (remark === '종료') {
+                    ward = '전문';
+                } else if (remark === '연장') {
+                    ward = '회복기';
+                } else {
+                    ward = '전문'; // 기본값
+                }
+            }
+
             patients.push({
                 name: name,
-                ward: currentWard,
+                ward: ward,
                 room: ''
             });
         }
