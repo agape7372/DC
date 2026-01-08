@@ -261,14 +261,23 @@ const Parser = (function () {
         let time = null;
         let therapist = null;
 
-        // "/" 구분자이고 첫 필드가 순수 이름이면 치료사/환자 형식으로 판단
-        const isSlashFormat = delimiter === '/' && fields.length >= 2;
-        const firstFieldIsOnlyName = isSlashFormat &&
-            /^[가-힣]{2,4}$/.test(fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim());
+        // "/" 구분자에서 이름 두 개 연속 감지 (치료사/환자 형식)
+        if (delimiter === '/' && fields.length >= 2) {
+            const cleanFirst = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
+            const cleanSecond = fields[1].replace(PATTERNS.EXTRA_ERROR, '').trim();
 
-        if (firstFieldIsOnlyName) {
-            therapist = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
-            fields = fields.slice(1); // 첫 필드(치료사) 제거
+            // 이름 패턴: 한글 2-4자 + 선택적 숫자 (동명이인)
+            const namePattern = /^[가-힣]{2,4}\d*$/;
+            const firstIsName = namePattern.test(cleanFirst) && !isOrderCodePattern(cleanFirst);
+            const secondIsName = namePattern.test(cleanSecond) && !isOrderCodePattern(cleanSecond);
+
+            if (firstIsName && secondIsName) {
+                // 이름 두 개 연속: 치료사/환자
+                therapist = cleanFirst;
+                patient = cleanSecond;
+                fields = fields.slice(2); // 처음 두 필드 제거
+            }
+            // 이름이 하나만 있는 경우는 아래 for loop에서 환자로 처리됨
         }
 
         for (const field of fields) {
