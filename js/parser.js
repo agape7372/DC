@@ -48,12 +48,27 @@ const Parser = (function () {
     }
 
     /**
+     * 괄호 안 시간 제거: M(10:15-10:45) → M
+     * @param {string} str
+     * @returns {string}
+     */
+    function removeTimeInParens(str) {
+        return str.replace(/\(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?\)$/g, '');
+    }
+
+    /**
      * 오더 코드 패턴인지 확인
      * @param {string} str
      * @returns {boolean}
      */
     function isOrderCodePattern(str) {
-        const upper = str.trim().toUpperCase();
+        const trimmed = str.trim();
+        if (!trimmed) return false;
+
+        // 괄호 안 시간 제거: M(10:15-10:45) → M
+        const withoutTime = removeTimeInParens(trimmed);
+        const upper = withoutTime.toUpperCase();
+
         if (!upper) return false;
 
         // 비급여 코드
@@ -96,8 +111,8 @@ const Parser = (function () {
         const patient = Storage.getPatientByName(trimmed);
         if (patient) return true;
 
-        // 한글 이름 패턴 (2-4자) - 오더 코드 아닌 경우
-        if (/^[가-힣]{2,4}$/.test(trimmed) && !isOrderCodePattern(trimmed)) {
+        // 한글 이름 패턴 (2-4자 + 동명이인 숫자) - 오더 코드 아닌 경우
+        if (/^[가-힣]{2,4}\d*$/.test(trimmed) && !isOrderCodePattern(trimmed)) {
             return true;
         }
 
@@ -122,7 +137,9 @@ const Parser = (function () {
         // 복합 오더 분리
         const expandedCodes = [];
         for (const code of rawCodes) {
-            const expanded = expandCompoundCode(code);
+            // 괄호 안 시간 제거: M(10:15-10:45) → M
+            const codeWithoutTime = removeTimeInParens(code);
+            const expanded = expandCompoundCode(codeWithoutTime);
             expandedCodes.push(...expanded);
         }
 
@@ -261,14 +278,23 @@ const Parser = (function () {
         let time = null;
         let therapist = null;
 
-        // "/" 구분자이고 첫 필드가 순수 이름이면 치료사/환자 형식으로 판단
-        const isSlashFormat = delimiter === '/' && fields.length >= 2;
-        const firstFieldIsOnlyName = isSlashFormat &&
-            /^[가-힣]{2,4}$/.test(fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim());
+        // "/" 구분자에서 이름 두 개 연속 감지 (치료사/환자 형식)
+        if (delimiter === '/' && fields.length >= 2) {
+            const cleanFirst = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
+            const cleanSecond = fields[1].replace(PATTERNS.EXTRA_ERROR, '').trim();
 
-        if (firstFieldIsOnlyName) {
-            therapist = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
-            fields = fields.slice(1); // 첫 필드(치료사) 제거
+            // 이름 패턴: 한글 2-4자 + 선택적 숫자 (동명이인)
+            const namePattern = /^[가-힣]{2,4}\d*$/;
+            const firstIsName = namePattern.test(cleanFirst) && !isOrderCodePattern(cleanFirst);
+            const secondIsName = namePattern.test(cleanSecond) && !isOrderCodePattern(cleanSecond);
+
+            if (firstIsName && secondIsName) {
+                // 이름 두 개 연속: 치료사/환자
+                therapist = cleanFirst;
+                patient = cleanSecond;
+                fields = fields.slice(2); // 처음 두 필드 제거
+            }
+            // 이름이 하나만 있는 경우는 아래 for loop에서 환자로 처리됨
         }
 
         for (const field of fields) {
@@ -304,8 +330,8 @@ const Parser = (function () {
                     continue;
                 }
 
-                // 한글 2-4자면 이름으로 추정
-                if (/^[가-힣]{2,4}$/.test(part)) {
+                // 한글 2-4자(+동명이인 숫자)면 이름으로 추정
+                if (/^[가-힣]{2,4}\d*$/.test(part)) {
                     if (!patient) {
                         patient = part;
                     } else if (!therapist) {
