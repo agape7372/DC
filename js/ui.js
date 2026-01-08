@@ -463,7 +463,8 @@ const UI = (function () {
      * 출력 텍스트에서 같은 RM끼리 그룹핑
      */
     function handleSortRm() {
-        const text = elements.outputArea.textContent || elements.outputArea.innerText;
+        // innerText 사용 - contenteditable의 줄바꿈 보존
+        const text = elements.outputArea.innerText;
 
         if (!text || text.trim() === '' || text === '변환 결과가 여기에 표시됩니다.') {
             showToast('정렬할 내용이 없습니다.', 'warning');
@@ -481,7 +482,9 @@ const UI = (function () {
      * @returns {string} - 정렬된 텍스트
      */
     function sortByRm(text) {
-        const lines = text.split('\n');
+        // 줄바꿈 정규화
+        const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const lines = normalizedText.split('\n');
         const result = [];
 
         let headerLines = [];
@@ -512,10 +515,10 @@ const UI = (function () {
                 inHeader = false;
 
                 // 이전 RM 저장
-                if (currentRm && currentRmLines.length > 0) {
+                if (currentRm && currentRmLines.length > 0 && currentDateSection) {
                     currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
                 }
-                if (currentDateSection) {
+                if (currentDateSection && currentSection) {
                     currentSection.dateSections.push(currentDateSection);
                 }
                 if (currentSection) {
@@ -532,10 +535,10 @@ const UI = (function () {
             // 날짜 섹션 감지 (1.4 > 또는 1.4~~>>)
             if (/^\d+\.\d+\s*(>|~~>>)$/.test(trimmedLine)) {
                 // 이전 RM 저장
-                if (currentRm && currentRmLines.length > 0) {
+                if (currentRm && currentRmLines.length > 0 && currentDateSection) {
                     currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
                 }
-                if (currentDateSection) {
+                if (currentDateSection && currentSection) {
                     currentSection.dateSections.push(currentDateSection);
                 }
 
@@ -546,14 +549,14 @@ const UI = (function () {
             }
 
             // RM 헤더 감지 (<RM1>, <RM?> 등)
-            const rmMatch = trimmedLine.match(/^<(RM\??)>$|^<(RM\d+)>$/);
+            const rmMatch = trimmedLine.match(/^<(RM\d+|RM\?)>$/i);
             if (rmMatch) {
                 // 이전 RM 저장
-                if (currentRm && currentRmLines.length > 0) {
+                if (currentRm && currentRmLines.length > 0 && currentDateSection) {
                     currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
                 }
 
-                currentRm = rmMatch[1] || rmMatch[2];
+                currentRm = rmMatch[1].toUpperCase();
                 currentRmLines = [];
                 continue;
             }
@@ -561,23 +564,18 @@ const UI = (function () {
             // 일반 라인
             if (inHeader) {
                 headerLines.push(line);
-            } else if (currentRm) {
+            } else if (currentRm && currentDateSection) {
                 if (trimmedLine) {
-                    currentRmLines.push(line);
-                }
-            } else if (currentDateSection) {
-                // 날짜 섹션 내 빈 줄 또는 기타
-                if (!trimmedLine && currentDateSection.rmGroups.length === 0) {
-                    // 날짜 헤더 바로 다음 빈 줄은 무시
+                    currentRmLines.push(trimmedLine);
                 }
             }
         }
 
         // 마지막 RM 저장
-        if (currentRm && currentRmLines.length > 0) {
+        if (currentRm && currentRmLines.length > 0 && currentDateSection) {
             currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
         }
-        if (currentDateSection) {
+        if (currentDateSection && currentSection) {
             currentSection.dateSections.push(currentDateSection);
         }
         if (currentSection) {
