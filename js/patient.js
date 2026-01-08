@@ -132,8 +132,7 @@ const PatientManager = (function () {
      *
      * 지원하는 형식:
      * 1. 헤더 기반: "이름" 또는 "환자명" 열 자동 감지
-     * 2. 한 셀에 모든 정보: "환자명, 병동구분, RM번호"
-     * 3. 여러 열: [환자명] [병동구분] [RM번호]
+     * 2. 섹션별 ward 감지: "회복기 종료 90일 미만" → 전문으로 취급
      *
      * @param {Array<Array<string>>} data - 엑셀 데이터 (2D 배열)
      * @param {string} defaultWard - 시트에서 감지된 기본 병동 (전문/회복기)
@@ -146,31 +145,61 @@ const PatientManager = (function () {
             return patients;
         }
 
-        // 헤더 기반 환자명 열 찾기
-        const columnInfo = findNameColumnIndex(data);
+        // 섹션별 ward 추적 (회복기 시트 내 "회복기 종료 90일 미만" 섹션은 전문으로)
+        let currentWard = defaultWard;
+        let currentNameCol = -1;
 
-        if (columnInfo) {
-            // 헤더 기반 파싱
-            const { headerRow, nameCol } = columnInfo;
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            if (!row || row.length === 0) continue;
 
-            for (let i = headerRow + 1; i < data.length; i++) {
-                const row = data[i];
-                if (!row || row.length === 0) continue;
+            const rowText = row.map(c => (c || '').toString()).join(' ');
 
-                const name = (row[nameCol] || '').toString().trim();
-                if (!name) continue;
-
-                // 숫자만 있는 행 스킵 (인덱스 행)
-                if (/^\d+$/.test(name)) continue;
-
-                patients.push({
-                    name: name,
-                    ward: defaultWard,
-                    room: ''
-                });
+            // 섹션 헤더 감지: "회복기 종료" 포함 시 전문으로 변경
+            if (rowText.includes('회복기 종료') || rowText.includes('90일 미만 대상자')) {
+                currentWard = '전문';
+                continue;
             }
-        } else {
-            // 기존 방식: 첫 번째 열에서 이름 추출
+
+            // 새로운 섹션 시작 감지 (일반 회복기 섹션)
+            // 괄호+숫자 패턴의 섹션 헤더 (예: "중추신경계(14)", "근골격계 60일 (2)")
+            // "회복기 종료"가 아닌 다른 섹션은 defaultWard로 복원
+            if (defaultWard === '회복기' && /[가-힣]+.*\(\d+\)/.test(rowText) &&
+                !rowText.includes('종료')) {
+                currentWard = '회복기';
+            }
+
+            // 환자명 열 헤더 찾기
+            let foundHeader = false;
+            for (let j = 0; j < row.length; j++) {
+                const cell = (row[j] || '').toString().trim();
+                if (cell === '이름' || cell === '환자명' || cell === '성명') {
+                    currentNameCol = j;
+                    foundHeader = true;
+                    break;
+                }
+            }
+            if (foundHeader) continue; // 헤더 행은 스킵
+
+            // 환자명 열이 아직 감지 안됨
+            if (currentNameCol < 0) continue;
+
+            // 데이터 행에서 환자명 추출
+            const name = (row[currentNameCol] || '').toString().trim();
+            if (!name) continue;
+
+            // 숫자만 있는 행 스킵 (인덱스 행)
+            if (/^\d+$/.test(name)) continue;
+
+            patients.push({
+                name: name,
+                ward: currentWard,
+                room: ''
+            });
+        }
+
+        // 헤더 기반 파싱 실패 시 기존 방식 사용
+        if (patients.length === 0) {
             let startRow = 0;
             if (data[0] && typeof data[0][0] === 'string') {
                 const firstCell = data[0][0].toString().toLowerCase();
