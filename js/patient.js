@@ -20,6 +20,19 @@ const PatientManager = (function () {
     // ========================================
 
     /**
+     * 시트 이름에서 전문/회복기 감지
+     * @param {string} sheetName - 시트 이름
+     * @returns {string} - '전문', '회복기', 또는 빈 문자열
+     */
+    function detectWardFromSheetName(sheetName) {
+        if (!sheetName) return '';
+        const name = sheetName.toLowerCase();
+        if (name.includes('전문')) return '전문';
+        if (name.includes('회복')) return '회복기';
+        return '';
+    }
+
+    /**
      * 엑셀 파일 읽기
      *
      * @param {File} file - 업로드된 파일
@@ -58,18 +71,26 @@ const PatientManager = (function () {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
 
-                    // 첫 번째 시트 사용
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+                    // 모든 시트에서 환자 데이터 수집
+                    const allPatients = [];
 
-                    // 시트를 JSON으로 변환
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-                        header: 1, // 배열 형태로
-                        defval: '' // 빈 셀 기본값
-                    });
+                    for (const sheetName of workbook.SheetNames) {
+                        const worksheet = workbook.Sheets[sheetName];
 
-                    const patients = parseExcelData(jsonData);
-                    resolve(patients);
+                        // 시트 이름에서 전문/회복기 감지
+                        const wardFromSheet = detectWardFromSheetName(sheetName);
+
+                        // 시트를 JSON으로 변환
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                            header: 1, // 배열 형태로
+                            defval: '' // 빈 셀 기본값
+                        });
+
+                        const patients = parseExcelData(jsonData, wardFromSheet);
+                        allPatients.push(...patients);
+                    }
+
+                    resolve(allPatients);
                 } catch (error) {
                     console.error('엑셀 파싱 오류:', error);
                     reject(new Error('엑셀 파일을 읽는 중 오류가 발생했습니다.'));
@@ -92,9 +113,10 @@ const PatientManager = (function () {
      * 2. 여러 열: [환자명] [병동구분] [RM번호]
      *
      * @param {Array<Array<string>>} data - 엑셀 데이터 (2D 배열)
+     * @param {string} defaultWard - 시트에서 감지된 기본 병동 (전문/회복기)
      * @returns {Array<Patient>}
      */
-    function parseExcelData(data) {
+    function parseExcelData(data, defaultWard = '') {
         const patients = [];
 
         if (!data || data.length === 0) {
@@ -116,7 +138,7 @@ const PatientManager = (function () {
             const row = data[i];
             if (!row || row.length === 0) continue;
 
-            const patient = parsePatientRow(row);
+            const patient = parsePatientRow(row, defaultWard);
             if (patient) {
                 patients.push(patient);
             }
@@ -129,9 +151,10 @@ const PatientManager = (function () {
      * 단일 행에서 환자 정보 파싱
      *
      * @param {Array<string>} row - 행 데이터
+     * @param {string} defaultWard - 시트에서 감지된 기본 병동
      * @returns {Patient|null}
      */
-    function parsePatientRow(row) {
+    function parsePatientRow(row, defaultWard = '') {
         if (!row || row.length === 0) return null;
 
         let name = '';
@@ -175,8 +198,8 @@ const PatientManager = (function () {
         // RM 번호 정규화
         room = normalizeRoomNumber(room);
 
-        // 병동 정규화
-        ward = normalizeWard(ward);
+        // 병동 정규화 (행 데이터 우선, 없으면 시트 이름에서 감지된 값 사용)
+        ward = normalizeWard(ward) || defaultWard;
 
         return { name, ward, room };
     }
