@@ -33,6 +33,7 @@ const OCCUPATIONAL_THERAPY_CODES = {
 
 /**
  * 단위 확인 스킵 오더 (평가 아니지만 단위 확인 불필요)
+ * 30분=1단위 오더는 단위 미지정 시 기본 1단위
  */
 const SKIP_UNIT_CHECK_CODES = ['전산화인지'];
 
@@ -41,6 +42,38 @@ const SKIP_UNIT_CHECK_CODES = ['전산화인지'];
  * 이 코드들은 숫자를 분리하지 않음
  */
 const NON_REIMBURSABLE_CODES = ['M7', 'N7', 'O7', 'H7'];
+
+// ========================================
+// 단위 계산 규칙
+// ========================================
+
+/**
+ * 30분 = 1단위 오더 (단위 미지정 시 기본 1단위, 단위확인 스킵)
+ * - 운동: CPM, F, M, M15, N, N7, P
+ * - 작업: D, H, H7, O7, S, V, Y
+ * - CA는 복합코드로 별도 처리 (C1+A1 = 30분)
+ */
+const UNIT_30MIN_CODES = ['CPM', 'F', 'M', 'M15', 'N', 'N7', 'P', 'D', 'H', 'H7', 'O7', 'S', 'V', 'Y'];
+
+/**
+ * 15분 = 1단위 오더 (시간으로 단위 자동 계산 가능)
+ * - 운동: RG, RM, RN, RP, MM
+ * - 작업: RA, RD, RS
+ * 예: RM(08:30-09:00) = 30분 = 2단위
+ */
+const UNIT_15MIN_CODES = ['RG', 'RM', 'RN', 'RP', 'MM', 'RA', 'RD', 'RS'];
+
+/**
+ * 복합 오더 코드 (분리 가능한 코드 조합)
+ * CA만 특별 처리: C(10분) + A(20분) = 30분
+ */
+const COMPOUND_CODES = ['CA'];
+
+/**
+ * 분리 불가 오더 코드 (알파벳 조합이지만 단일 코드)
+ * CPM, MM 등은 분리하지 않음
+ */
+const NON_SPLITTABLE_CODES = ['CPM', 'MM', 'M15', 'PHQ-9'];
 
 /**
  * 모든 운동치료 코드 (일반 + 평가)
@@ -142,6 +175,23 @@ const PATTERNS = {
 // ========================================
 
 /**
+ * HTML 특수문자 이스케이프 (XSS 방지)
+ * @param {string} str - 이스케이프할 문자열
+ * @returns {string}
+ */
+function escapeHtml(str) {
+    if (!str) return '';
+    const escapeMap = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    };
+    return str.replace(/[&<>"']/g, char => escapeMap[char]);
+}
+
+/**
  * 오더 코드가 비급여 코드인지 확인
  * @param {string} code - 오더 코드
  * @returns {boolean}
@@ -201,6 +251,72 @@ function isValidOrderCode(code) {
     const codeOnly = trimmedCode.replace(/\d+$/, '');
 
     return isPhysicalTherapyCode(codeOnly) || isOccupationalTherapyCode(codeOnly);
+}
+
+/**
+ * 30분 = 1단위 오더인지 확인
+ * @param {string} code - 오더 코드
+ * @returns {boolean}
+ */
+function is30MinUnitCode(code) {
+    if (!code) return false;
+    const upperCode = code.toUpperCase().replace(/\d+$/, '');
+    return UNIT_30MIN_CODES.includes(upperCode);
+}
+
+/**
+ * 15분 = 1단위 오더인지 확인
+ * @param {string} code - 오더 코드
+ * @returns {boolean}
+ */
+function is15MinUnitCode(code) {
+    if (!code) return false;
+    const upperCode = code.toUpperCase().replace(/\d+$/, '');
+    return UNIT_15MIN_CODES.includes(upperCode);
+}
+
+/**
+ * 분리 불가 코드인지 확인
+ * @param {string} code - 오더 코드
+ * @returns {boolean}
+ */
+function isNonSplittableCode(code) {
+    if (!code) return false;
+    const upperCode = code.toUpperCase().replace(/\d+$/, '');
+    return NON_SPLITTABLE_CODES.includes(upperCode);
+}
+
+/**
+ * 시간 문자열에서 분 단위 차이 계산
+ * @param {string} timeStr - "HH:MM-HH:MM" 형식
+ * @returns {number|null} - 분 단위 차이, 계산 불가 시 null
+ */
+function calculateMinutesFromTime(timeStr) {
+    if (!timeStr) return null;
+
+    const match = timeStr.match(/(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+
+    const startHour = parseInt(match[1], 10);
+    const startMin = parseInt(match[2], 10);
+    const endHour = parseInt(match[3], 10);
+    const endMin = parseInt(match[4], 10);
+
+    const startTotal = startHour * 60 + startMin;
+    const endTotal = endHour * 60 + endMin;
+
+    return endTotal - startTotal;
+}
+
+/**
+ * 시간으로 15분 단위 오더의 단위 수 계산
+ * @param {string} timeStr - "HH:MM-HH:MM" 형식
+ * @returns {number|null} - 단위 수, 계산 불가 시 null
+ */
+function calculateUnitsFromTime(timeStr) {
+    const minutes = calculateMinutesFromTime(timeStr);
+    if (minutes === null || minutes <= 0) return null;
+    return Math.round(minutes / 15);
 }
 
 /**

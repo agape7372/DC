@@ -48,6 +48,16 @@ const Parser = (function () {
     }
 
     /**
+     * 괄호 안 시간 추출: M(10:15-10:45) → "10:15-10:45"
+     * @param {string} str
+     * @returns {string|null}
+     */
+    function extractTimeFromParens(str) {
+        const match = str.match(/\((\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)\)$/);
+        return match ? match[1] : null;
+    }
+
+    /**
      * 괄호 안 시간 제거: M(10:15-10:45) → M
      * @param {string} str
      * @returns {string}
@@ -121,6 +131,7 @@ const Parser = (function () {
 
     /**
      * 오더 코드를 개별 코드로 분리
+     * @returns {Array<{code: string, time: string|null}>} - 코드와 괄호 내 시간
      */
     function splitOrderCodes(orderString) {
         if (!orderString) return [];
@@ -134,13 +145,21 @@ const Parser = (function () {
             .map(code => code.trim())
             .filter(code => code.length > 0);
 
-        // 복합 오더 분리
+        // 복합 오더 분리 (괄호 내 시간 보존)
         const expandedCodes = [];
         for (const code of rawCodes) {
+            // 괄호 안 시간 추출: M(10:15-10:45) → "10:15-10:45"
+            const timeInParens = extractTimeFromParens(code);
             // 괄호 안 시간 제거: M(10:15-10:45) → M
             const codeWithoutTime = removeTimeInParens(code);
             const expanded = expandCompoundCode(codeWithoutTime);
-            expandedCodes.push(...expanded);
+
+            for (const expandedCode of expanded) {
+                expandedCodes.push({
+                    code: expandedCode,
+                    time: timeInParens
+                });
+            }
         }
 
         return expandedCodes;
@@ -150,6 +169,8 @@ const Parser = (function () {
      * 복합 오더 코드 분리
      * CA → C1, A1 (CA만 특별히 숫자 없으면 기본 1단위)
      * C2A1 → C2, A1
+     *
+     * 주의: CPM, MM, M15 등은 분리하지 않음 (단일 코드)
      */
     function expandCompoundCode(code) {
         if (!code) return [];
@@ -161,12 +182,23 @@ const Parser = (function () {
             return [upperCode];
         }
 
+        // 분리 불가 코드 체크 (CPM, MM, M15, PHQ-9 등)
+        if (isNonSplittableCode(upperCode)) {
+            return [upperCode];
+        }
+
         // CA 특별 처리: 숫자 없으면 C1A1로
         if (upperCode === 'CA') {
             return ['C1', 'A1'];
         }
 
-        // 복합 코드 패턴
+        // 이미 단일 유효 코드인 경우 분리하지 않음
+        const baseCode = upperCode.replace(/\d+$/, '');
+        if (isPhysicalTherapyCode(baseCode) || isOccupationalTherapyCode(baseCode)) {
+            return [upperCode];
+        }
+
+        // 복합 코드 패턴 (예: C2A1)
         const pattern = /([A-Z]+)(\d*)/g;
         const matches = [...upperCode.matchAll(pattern)];
         const reconstructed = matches.map(m => m[0]).join('');
@@ -174,6 +206,8 @@ const Parser = (function () {
         if (matches.length >= 2 && reconstructed === upperCode) {
             const allValid = matches.every(m => {
                 const codeOnly = m[1];
+                // 분리 불가 코드가 포함되어 있으면 분리하지 않음
+                if (isNonSplittableCode(codeOnly)) return false;
                 return isPhysicalTherapyCode(codeOnly) || isOccupationalTherapyCode(codeOnly);
             });
 
@@ -187,8 +221,10 @@ const Parser = (function () {
 
     /**
      * 오더 코드 파싱 (코드와 단위 분리)
+     * @param {string} rawCode - 원본 오더 코드
+     * @param {string} timeStr - 시간 문자열 (선택, 15분 단위 계산용)
      */
-    function parseOrderCode(rawCode) {
+    function parseOrderCode(rawCode, timeStr) {
         if (!rawCode) {
             return { code: '', unit: null, raw: '' };
         }
@@ -217,10 +253,27 @@ const Parser = (function () {
         }
 
         const [, codeOnly, unitStr] = match;
+        let unit = unitStr ? parseInt(unitStr, 10) : null;
+
+        // 단위가 없는 경우 규칙 기반 자동 계산
+        if (unit === null) {
+            // 30분 = 1단위 오더: 기본 1단위
+            if (is30MinUnitCode(codeOnly)) {
+                unit = 1;
+            }
+            // 15분 = 1단위 오더: 시간으로 계산
+            else if (is15MinUnitCode(codeOnly) && timeStr) {
+                const calculatedUnit = calculateUnitsFromTime(timeStr);
+                if (calculatedUnit !== null) {
+                    unit = calculatedUnit;
+                }
+            }
+        }
+
         return {
             code: codeOnly,
-            unit: unitStr ? parseInt(unitStr, 10) : null,
-            raw: upperCode
+            unit: unit,
+            raw: unit !== null ? codeOnly + unit : upperCode
         };
     }
 
@@ -362,12 +415,17 @@ const Parser = (function () {
         const isEvaluationTime = time && PATTERNS.EVALUATION_TIME.test(time);
 
         // 오더 객체 생성
-        for (const rawCode of orderCodes) {
-            const parsed = parseOrderCode(rawCode);
+        // orderCodes는 {code, time} 객체 배열 (splitOrderCodes에서 반환)
+        for (const orderInfo of orderCodes) {
+            // 괄호 내 시간 우선, 없으면 필드 시간 사용
+            const effectiveTime = orderInfo.time || time;
+
+            // 시간 정보를 parseOrderCode에 전달하여 15분 단위 오더 자동 계산
+            const parsed = parseOrderCode(orderInfo.code, effectiveTime);
             const therapyType = getTherapyType(parsed.code);
 
             if (therapyType === 'unknown') {
-                console.warn(`알 수 없는 오더 코드: ${rawCode}`);
+                console.warn(`알 수 없는 오더 코드: ${orderInfo.code}`);
             }
 
             result.orders.push({
@@ -375,7 +433,7 @@ const Parser = (function () {
                 patient: patient,
                 code: parsed.code,
                 unit: parsed.unit,
-                time: time || '',
+                time: effectiveTime || '',
                 isEvaluation: isEvaluationTime || isEvaluationCode(parsed.code),
                 hasExtraError: hasExtraError,
                 rawCode: parsed.raw,

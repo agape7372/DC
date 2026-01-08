@@ -165,6 +165,7 @@ const UI = (function () {
         // 버튼 그룹 이벤트
         bindButtonGroupEvents(elements.floorGroup, 'floor');
         bindButtonGroupEvents(elements.jobGroup, 'job');
+        bindTherapistGroupEvents(); // 치료사 버튼 그룹 (한 번만 바인딩)
 
         // 날짜 변경
         elements.dateInput.addEventListener('change', updateDateDisplay);
@@ -349,8 +350,8 @@ const UI = (function () {
 
             return `
                 <div class="unit-check-item">
-                    <span>${order.therapist}/${order.patient}/${order.code}</span>
-                    <select class="unit-select" data-key="${key}" data-index="${index}">
+                    <span>${escapeHtml(order.therapist)}/${escapeHtml(order.patient)}/${escapeHtml(order.code)}</span>
+                    <select class="unit-select" data-key="${escapeHtml(key)}" data-index="${index}">
                         ${optionsHtml}
                     </select>
                 </div>
@@ -633,9 +634,9 @@ const UI = (function () {
     function renderTherapists() {
         const therapists = Storage.getTherapists();
 
-        // 버튼 그룹 렌더링
+        // 버튼 그룹 렌더링 (XSS 방지를 위해 escapeHtml 사용)
         const buttonsHtml = therapists.map(name =>
-            `<button type="button" class="btn-option" data-value="${name}">${name}</button>`
+            `<button type="button" class="btn-option" data-value="${escapeHtml(name)}">${escapeHtml(name)}</button>`
         ).join('');
         elements.therapistGroup.innerHTML = buttonsHtml;
 
@@ -643,9 +644,6 @@ const UI = (function () {
         if (currentSettings.therapist) {
             selectButtonInGroup(elements.therapistGroup, currentSettings.therapist);
         }
-
-        // 버튼 그룹 이벤트 재바인딩
-        bindTherapistGroupEvents();
 
         // 모달 목록 렌더링
         renderTherapistList();
@@ -683,8 +681,8 @@ const UI = (function () {
 
         const html = therapists.map(name => `
             <li>
-                <span>${name}</span>
-                <button type="button" class="btn-delete" data-name="${name}">삭제</button>
+                <span>${escapeHtml(name)}</span>
+                <button type="button" class="btn-delete" data-name="${escapeHtml(name)}">삭제</button>
             </li>
         `).join('');
 
@@ -870,14 +868,14 @@ const UI = (function () {
                 else if (result.modified.some(m => m.name === p.name)) itemClass = 'modified';
             }
 
-            let detail = `${p.ward} / ${p.room}`;
+            let detail = `${escapeHtml(p.ward)} / ${escapeHtml(p.room)}`;
             if (p.previous) {
-                detail += ` (이전: ${p.previous.ward} / ${p.previous.room})`;
+                detail += ` (이전: ${escapeHtml(p.previous.ward)} / ${escapeHtml(p.previous.room)})`;
             }
 
             return `
                 <div class="preview-item ${itemClass}">
-                    <div class="preview-item-name">${p.name}</div>
+                    <div class="preview-item-name">${escapeHtml(p.name)}</div>
                     <div class="preview-item-detail">${detail}</div>
                 </div>
             `;

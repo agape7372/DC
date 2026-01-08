@@ -354,10 +354,36 @@
                 TestRunner.assertEqual(result.orders[0].unit, 2);
             });
 
-            TestRunner.test('단위 없는 코드 - RG', () => {
-                const result = Parser.parseLine('신하연/문두순/RG/12:00');
+            TestRunner.test('15분 단위 코드 - RG (시간 없음)', () => {
+                const result = Parser.parseLine('신하연/문두순/RG');
                 TestRunner.assertEqual(result.orders[0].code, 'RG');
                 TestRunner.assertNull(result.orders[0].unit);
+            });
+
+            TestRunner.test('30분 단위 코드 - N (자동 1단위)', () => {
+                const result = Parser.parseLine('신하연/문두순/N/12:00');
+                TestRunner.assertEqual(result.orders[0].code, 'N');
+                TestRunner.assertEqual(result.orders[0].unit, 1);
+            });
+
+            TestRunner.test('15분 단위 코드 - RM (시간으로 계산)', () => {
+                const result = Parser.parseLine('신하연/문두순/RM(08:30-09:00)');
+                TestRunner.assertEqual(result.orders[0].code, 'RM');
+                TestRunner.assertEqual(result.orders[0].unit, 2); // 30분 = 2단위
+            });
+
+            TestRunner.test('분리 불가 코드 - CPM', () => {
+                const result = Parser.parseLine('신하연/문두순/CPM/12:00');
+                TestRunner.assertLength(result.orders, 1);
+                TestRunner.assertEqual(result.orders[0].code, 'CPM');
+                TestRunner.assertEqual(result.orders[0].unit, 1); // 30분=1단위
+            });
+
+            TestRunner.test('분리 불가 코드 - MM', () => {
+                const result = Parser.parseLine('신하연/문두순/MM(08:30-09:00)');
+                TestRunner.assertLength(result.orders, 1);
+                TestRunner.assertEqual(result.orders[0].code, 'MM');
+                TestRunner.assertEqual(result.orders[0].unit, 2); // 15분 단위, 30분=2단위
             });
 
             TestRunner.test('콤마로 구분된 오더 파싱', () => {
@@ -461,11 +487,25 @@
                 TestRunner.assertLength(result.orders, 2);
             });
 
-            TestRunner.test('단위 확인 필요 목록', () => {
-                const input = `이예지/김원순/RG/11:25
-신하연/문두순/RG/12:00`;
+            TestRunner.test('15분 단위 코드 - 시간 없으면 단위 확인 필요', () => {
+                const input = `이예지/김원순/RG
+신하연/문두순/RM`;
                 const result = Parser.parseInput(input);
                 TestRunner.assertLength(result.needsUnitCheck, 2);
+            });
+
+            TestRunner.test('30분 단위 코드 - 자동 1단위로 단위 확인 불필요', () => {
+                const input = `이예지/김원순/N/11:25
+신하연/문두순/M/12:00`;
+                const result = Parser.parseInput(input);
+                TestRunner.assertLength(result.needsUnitCheck, 0);
+            });
+
+            TestRunner.test('15분 단위 코드 - 시간 있으면 단위 확인 불필요', () => {
+                const input = `이예지/김원순/RM(08:30-09:00)`;
+                const result = Parser.parseInput(input);
+                TestRunner.assertLength(result.needsUnitCheck, 0);
+                TestRunner.assertEqual(result.orders[0].unit, 2);
             });
 
             TestRunner.test('비급여 코드는 단위 확인 불필요', () => {
