@@ -100,6 +100,7 @@ const UI = (function () {
         elements.outputArea = document.getElementById('outputArea');
         elements.convertBtn = document.getElementById('convertBtn');
         elements.copyBtn = document.getElementById('copyBtn');
+        elements.sortRmBtn = document.getElementById('sortRmBtn');
 
         elements.unitCheckSection = document.getElementById('unitCheckSection');
         elements.unitCheckList = document.getElementById('unitCheckList');
@@ -173,6 +174,9 @@ const UI = (function () {
 
         // 복사 버튼
         elements.copyBtn.addEventListener('click', handleCopy);
+
+        // RM 정렬 버튼
+        elements.sortRmBtn.addEventListener('click', handleSortRm);
 
         // 치료사 관리
         elements.manageTherapistBtn.addEventListener('click', openTherapistModal);
@@ -448,6 +452,177 @@ const UI = (function () {
             console.error('복사 실패:', err);
             showToast('복사에 실패했습니다.', 'error');
         }
+    }
+
+    // ========================================
+    // RM 정렬
+    // ========================================
+
+    /**
+     * RM 정렬 버튼 클릭 핸들러
+     * 출력 텍스트에서 같은 RM끼리 그룹핑
+     */
+    function handleSortRm() {
+        const text = elements.outputArea.textContent || elements.outputArea.innerText;
+
+        if (!text || text.trim() === '' || text === '변환 결과가 여기에 표시됩니다.') {
+            showToast('정렬할 내용이 없습니다.', 'warning');
+            return;
+        }
+
+        const sortedText = sortByRm(text);
+        elements.outputArea.textContent = sortedText;
+        showToast('RM별로 정렬 완료!', 'success');
+    }
+
+    /**
+     * 텍스트를 RM별로 정렬
+     * @param {string} text - 원본 텍스트
+     * @returns {string} - 정렬된 텍스트
+     */
+    function sortByRm(text) {
+        const lines = text.split('\n');
+        const result = [];
+
+        let headerLines = [];
+        let footerLines = [];
+        let sections = []; // {title: '[추가 오더]' or '[삭제 오더]', dateSections: [...]}
+        let currentSection = null;
+        let currentDateSection = null;
+        let currentRm = null;
+        let currentRmLines = [];
+        let inHeader = true;
+        let foundFooter = false;
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+
+            // 푸터 감지
+            if (trimmedLine.startsWith('부탁드립니다') || trimmedLine.startsWith('감사합니다')) {
+                foundFooter = true;
+            }
+
+            if (foundFooter) {
+                footerLines.push(line);
+                continue;
+            }
+
+            // 섹션 헤더 감지 ([추가 오더], [삭제 오더])
+            if (trimmedLine === '[추가 오더]' || trimmedLine === '[삭제 오더]') {
+                inHeader = false;
+
+                // 이전 RM 저장
+                if (currentRm && currentRmLines.length > 0) {
+                    currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
+                }
+                if (currentDateSection) {
+                    currentSection.dateSections.push(currentDateSection);
+                }
+                if (currentSection) {
+                    sections.push(currentSection);
+                }
+
+                currentSection = { title: trimmedLine, dateSections: [] };
+                currentDateSection = null;
+                currentRm = null;
+                currentRmLines = [];
+                continue;
+            }
+
+            // 날짜 섹션 감지 (1.4 > 또는 1.4~~>>)
+            if (/^\d+\.\d+\s*(>|~~>>)$/.test(trimmedLine)) {
+                // 이전 RM 저장
+                if (currentRm && currentRmLines.length > 0) {
+                    currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
+                }
+                if (currentDateSection) {
+                    currentSection.dateSections.push(currentDateSection);
+                }
+
+                currentDateSection = { dateHeader: trimmedLine, rmGroups: [] };
+                currentRm = null;
+                currentRmLines = [];
+                continue;
+            }
+
+            // RM 헤더 감지 (<RM1>, <RM?> 등)
+            const rmMatch = trimmedLine.match(/^<(RM\??)>$|^<(RM\d+)>$/);
+            if (rmMatch) {
+                // 이전 RM 저장
+                if (currentRm && currentRmLines.length > 0) {
+                    currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
+                }
+
+                currentRm = rmMatch[1] || rmMatch[2];
+                currentRmLines = [];
+                continue;
+            }
+
+            // 일반 라인
+            if (inHeader) {
+                headerLines.push(line);
+            } else if (currentRm) {
+                if (trimmedLine) {
+                    currentRmLines.push(line);
+                }
+            } else if (currentDateSection) {
+                // 날짜 섹션 내 빈 줄 또는 기타
+                if (!trimmedLine && currentDateSection.rmGroups.length === 0) {
+                    // 날짜 헤더 바로 다음 빈 줄은 무시
+                }
+            }
+        }
+
+        // 마지막 RM 저장
+        if (currentRm && currentRmLines.length > 0) {
+            currentDateSection.rmGroups.push({ rm: currentRm, lines: currentRmLines });
+        }
+        if (currentDateSection) {
+            currentSection.dateSections.push(currentDateSection);
+        }
+        if (currentSection) {
+            sections.push(currentSection);
+        }
+
+        // 결과 조립
+        result.push(...headerLines);
+
+        for (const section of sections) {
+            result.push(section.title);
+
+            for (const dateSection of section.dateSections) {
+                result.push(dateSection.dateHeader);
+                result.push('');
+
+                // RM별로 그룹핑 및 병합
+                const rmMap = new Map();
+                for (const rmGroup of dateSection.rmGroups) {
+                    if (!rmMap.has(rmGroup.rm)) {
+                        rmMap.set(rmGroup.rm, []);
+                    }
+                    rmMap.get(rmGroup.rm).push(...rmGroup.lines);
+                }
+
+                // RM 정렬 (숫자순, RM?는 마지막)
+                const sortedRms = Array.from(rmMap.keys()).sort((a, b) => {
+                    if (a === 'RM?') return 1;
+                    if (b === 'RM?') return -1;
+                    const numA = parseInt(a.replace('RM', '')) || 999;
+                    const numB = parseInt(b.replace('RM', '')) || 999;
+                    return numA - numB;
+                });
+
+                for (const rm of sortedRms) {
+                    result.push(`<${rm}>`);
+                    result.push(...rmMap.get(rm));
+                    result.push('');
+                }
+            }
+        }
+
+        result.push(...footerLines);
+
+        return result.join('\n');
     }
 
     // ========================================
