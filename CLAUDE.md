@@ -20,9 +20,26 @@ npm run dev
 
 순수 HTML/CSS/JavaScript 기반 (프레임워크 없음). localStorage로 데이터 저장.
 
+### External Dependencies
+- **SheetJS (xlsx)**: Excel 파일 파싱 (CDN 로드)
+
 ### Module Loading Order (index.html)
 ```
 constants.js → storage.js → parser.js → formatter.js → patient.js → ui.js → app.js
+```
+
+### Module Pattern
+모든 모듈은 **IIFE(즉시 실행 함수 표현식)** 패턴 사용:
+```javascript
+const ModuleName = (function() {
+    // Private functions (closures)
+    function privateFunc() { ... }
+
+    // Public API
+    return {
+        publicFunc() { ... }
+    };
+})();
 ```
 
 ### Module Responsibilities
@@ -37,6 +54,10 @@ constants.js → storage.js → parser.js → formatter.js → patient.js → ui
 | `ui.js` | DOM 이벤트 핸들링, UI 상태 관리 |
 | `app.js` | 앱 초기화 진입점 |
 
+### Key Data Structures
+- **ParsedOrder**: `{ therapist, patientName, rm, codes[], period, units, isEvaluation, rawTime }`
+- **Patient**: `{ name, rm }` (localStorage에 저장)
+
 ## Domain Concepts
 
 ### 오더 코드 분류
@@ -50,9 +71,29 @@ constants.js → storage.js → parser.js → formatter.js → patient.js → ui
 2. **복합 오더 파싱**: C1A1 → C1 + A1로 분리
 3. **평가/치료 자동 분리**: 평가 오더는 `>` (당일), 치료 오더는 `~~>>` (계속)
 
+### 오더 단위 자동 계산 규칙
+- **30분 기준 코드** (UNIT_30MIN_CODES): 시간 입력 시 자동 계산 (예: 90분 → 3단위)
+- **15분 기준 코드** (UNIT_15MIN_CODES): 시간 입력 시 자동 계산 (예: 60분 → 4단위)
+- **시간 형식**: `HH:MM` 또는 `HH:MM-HH:MM` (괄호 안 입력 가능)
+- **단위 확인 UI**: 시간 입력 시 단위 확인 섹션 표시 (기본값: 2단위)
+
 ### 입력/출력 형식
 - **입력**: `치료사/환자/오더코드/시간` (Excel 복사 형식)
 - **출력**: RM별로 그룹핑된 메신저 양식
+
+## Testing
+
+커스텀 테스트 프레임워크 사용 (tests/test.html):
+```javascript
+TestRunner.suite('테스트 그룹명');
+TestRunner.test('테스트명', () => {
+    assert.equal(actual, expected);
+    assert.deepEqual(obj1, obj2);
+    assert.throws(() => { ... });
+});
+```
+
+브라우저에서 tests/test.html 열어서 수동 실행. CLI 기반 자동화 테스트 없음.
 
 ## Deployment
 
