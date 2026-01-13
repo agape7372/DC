@@ -293,9 +293,15 @@ const PatientManager = (function () {
 
         const str = room.toString().trim().toUpperCase();
 
-        // 이미 RM 형식이면 그대로
+        // 이미 RM 형식이면 검증 후 반환
         if (str.startsWith('RM')) {
-            return str;
+            const match = str.match(/^RM(\d+)$/);
+            if (match) {
+                return str; // 유효한 RM 형식
+            }
+            // 유효하지 않은 RM 형식 (예: RMABC)
+            console.warn('잘못된 RM 형식:', room);
+            return ''; // 빈 문자열 반환
         }
 
         // 숫자만 있으면 RM 붙이기
@@ -303,7 +309,9 @@ const PatientManager = (function () {
             return 'RM' + str;
         }
 
-        return str;
+        // 그 외는 빈 문자열 반환
+        console.warn('인식할 수 없는 room 형식:', room);
+        return '';
     }
 
     /**

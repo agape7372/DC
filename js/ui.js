@@ -292,6 +292,7 @@ const UI = (function () {
         parsedAddOrders = [];
         let addUnitCheck = [];
         let allWarnings = [];
+        let allErrors = [];
         if (addInput) {
             const addResult = Parser.parseInput(addInput);
             if (addResult.success || addResult.orders.length > 0) {
@@ -300,6 +301,7 @@ const UI = (function () {
             }
             if (addResult.errors.length > 0) {
                 console.warn('추가오더 파싱 에러:', addResult.errors);
+                allErrors.push(...addResult.errors.map(err => `[추가] ${err}`));
             }
             if (addResult.warnings.length > 0) {
                 allWarnings.push(...addResult.warnings);
@@ -317,10 +319,18 @@ const UI = (function () {
             }
             if (deleteResult.errors.length > 0) {
                 console.warn('삭제오더 파싱 에러:', deleteResult.errors);
+                allErrors.push(...deleteResult.errors.map(err => `[삭제] ${err}`));
             }
             if (deleteResult.warnings.length > 0) {
                 allWarnings.push(...deleteResult.warnings);
             }
+        }
+
+        // 파싱 에러 표시 (최대 3개)
+        if (allErrors.length > 0) {
+            const errorMsg = allErrors.slice(0, 3).join('\n');
+            const moreMsg = allErrors.length > 3 ? `\n... 외 ${allErrors.length - 3}개` : '';
+            showToast('일부 라인 파싱 실패:\n' + errorMsg + moreMsg, 'warning');
         }
 
         // 경고 메시지 표시 (정의되지 않은 코드 등)

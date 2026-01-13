@@ -36,8 +36,9 @@ const Formatter = (function () {
             return order.code;
         }
 
-        // 일반 코드: 코드 + 단위
-        return order.code + (order.unit || DEFAULT_UNIT);
+        // 일반 코드: 코드 + 단위 (null/undefined만 기본값 사용)
+        const unit = order.unit !== null && order.unit !== undefined ? order.unit : DEFAULT_UNIT;
+        return order.code + unit;
     }
 
     /**
@@ -71,6 +72,12 @@ const Formatter = (function () {
         const roomMap = new Map();
 
         for (const order of orders) {
+            // 환자명 빈 문자열 체크
+            if (!order.patient || !order.patient.trim()) {
+                console.warn('환자명이 없는 오더:', order);
+                continue;
+            }
+
             // 환자 정보 조회
             const patient = Storage.getPatientByName(order.patient);
             const room = patient?.room || 'RM?';
@@ -148,9 +155,10 @@ const Formatter = (function () {
                 const key = formatOrderCode(order);
                 codeMap.set(key, (codeMap.get(key) || 0) + 1);
             } else {
-                // 일반 코드: 단위 합산
+                // 일반 코드: 단위 합산 (null/undefined만 기본값 사용)
                 const currentUnit = codeMap.get(code) || 0;
-                codeMap.set(code, currentUnit + (order.unit || DEFAULT_UNIT));
+                const orderUnit = order.unit !== null && order.unit !== undefined ? order.unit : DEFAULT_UNIT;
+                codeMap.set(code, currentUnit + orderUnit);
             }
         }
 

@@ -56,21 +56,31 @@ const Parser = (function () {
             return trimmed;
         }
 
-        // 4자리 숫자 형식: 1440 → 14:40
+        // 4자리 숫자 형식: 1440 → 14:40 (유효성 검증 추가)
         if (/^\d{4}$/.test(trimmed)) {
-            const hour = trimmed.slice(0, 2);
-            const min = trimmed.slice(2, 4);
-            return `${hour}:${min}`;
+            const hour = parseInt(trimmed.slice(0, 2), 10);
+            const min = parseInt(trimmed.slice(2, 4), 10);
+            // 유효한 시간인지 검증
+            if (hour >= 0 && hour <= 23 && min >= 0 && min <= 59) {
+                return `${trimmed.slice(0, 2)}:${trimmed.slice(2, 4)}`;
+            }
+            return null; // 유효하지 않은 시간
         }
 
-        // 범위 형식: 1440-1510 → 14:40-15:10
+        // 범위 형식: 1440-1510 → 14:40-15:10 (유효성 검증 추가)
         const rangeMatch = trimmed.match(/^(\d{4})-(\d{4})$/);
         if (rangeMatch) {
-            const startHour = rangeMatch[1].slice(0, 2);
-            const startMin = rangeMatch[1].slice(2, 4);
-            const endHour = rangeMatch[2].slice(0, 2);
-            const endMin = rangeMatch[2].slice(2, 4);
-            return `${startHour}:${startMin}-${endHour}:${endMin}`;
+            const startHour = parseInt(rangeMatch[1].slice(0, 2), 10);
+            const startMin = parseInt(rangeMatch[1].slice(2, 4), 10);
+            const endHour = parseInt(rangeMatch[2].slice(0, 2), 10);
+            const endMin = parseInt(rangeMatch[2].slice(2, 4), 10);
+
+            // 유효한 시간인지 검증
+            if (startHour >= 0 && startHour <= 23 && startMin >= 0 && startMin <= 59 &&
+                endHour >= 0 && endHour <= 23 && endMin >= 0 && endMin <= 59) {
+                return `${rangeMatch[1].slice(0, 2)}:${rangeMatch[1].slice(2, 4)}-${rangeMatch[2].slice(0, 2)}:${rangeMatch[2].slice(2, 4)}`;
+            }
+            return null; // 유효하지 않은 시간
         }
 
         return null;
