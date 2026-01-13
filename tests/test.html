@@ -660,6 +660,66 @@
                 TestRunner.assertEqual(result.orders[0].code, 'COM');
                 TestRunner.assertEqual(result.orders[1].code, 'M7');
             });
+
+            TestRunner.suite('Parser - 출력 텍스트 파싱 (RM 저장)');
+
+            TestRunner.test('출력 텍스트에서 환자 RM 정보 추출', () => {
+                const output = `<RM3>
+유혜영4님 운동 - M1
+김철수님 작업 - C1
+
+<RM5>
+박영희님 운동 - RG2`;
+
+                const result = Parser.parseOutputForPatients(output);
+                TestRunner.assertLength(result.patients, 3);
+                TestRunner.assertEqual(result.patients[0].name, '유혜영4');
+                TestRunner.assertEqual(result.patients[0].room, 'RM3');
+                TestRunner.assertEqual(result.patients[1].name, '김철수');
+                TestRunner.assertEqual(result.patients[1].room, 'RM3');
+                TestRunner.assertEqual(result.patients[2].name, '박영희');
+                TestRunner.assertEqual(result.patients[2].room, 'RM5');
+            });
+
+            TestRunner.test('병동구분 포함 파싱', () => {
+                const output = `<RM3>
+회복기 유혜영4님 운동 - M1
+전문 김철수님 작업 - C1`;
+
+                const result = Parser.parseOutputForPatients(output);
+                TestRunner.assertLength(result.patients, 2);
+                TestRunner.assertEqual(result.patients[0].name, '유혜영4');
+                TestRunner.assertEqual(result.patients[0].ward, '회복기');
+                TestRunner.assertEqual(result.patients[1].name, '김철수');
+                TestRunner.assertEqual(result.patients[1].ward, '전문');
+            });
+
+            TestRunner.test('RM?는 무시됨', () => {
+                const output = `<RM?>
+유혜영4님 운동 - M1
+
+<RM3>
+김철수님 작업 - C1`;
+
+                const result = Parser.parseOutputForPatients(output);
+                TestRunner.assertLength(result.patients, 1);
+                TestRunner.assertEqual(result.patients[0].name, '김철수');
+                TestRunner.assertEqual(result.patients[0].room, 'RM3');
+            });
+
+            TestRunner.test('빈 출력 텍스트', () => {
+                const result = Parser.parseOutputForPatients('');
+                TestRunner.assertTrue(result.errors.length > 0);
+                TestRunner.assertLength(result.patients, 0);
+            });
+
+            TestRunner.test('환자 정보 없는 출력', () => {
+                const output = `안녕하세요.
+추가오더 보내드립니다.`;
+                const result = Parser.parseOutputForPatients(output);
+                TestRunner.assertTrue(result.errors.length > 0);
+                TestRunner.assertLength(result.patients, 0);
+            });
         }
 
         // ========================================

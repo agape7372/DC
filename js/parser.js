@@ -611,6 +611,75 @@ const Parser = (function () {
     }
 
     // ========================================
+    // 출력 텍스트 파싱 (RM 정보 추출)
+    // ========================================
+
+    /**
+     * 출력 텍스트에서 환자 RM 정보 추출
+     *
+     * 형식:
+     * <RM3>
+     * 유혜영4님 운동 - M1
+     * 김철수님 작업 - C1
+     *
+     * <RM5>
+     * 박영희님 운동 - RG2
+     *
+     * @param {string} outputText - 출력 텍스트
+     * @returns {{patients: Array<{name: string, room: string, ward: string}>, errors: string[]}}
+     */
+    function parseOutputForPatients(outputText) {
+        const result = {
+            patients: [],
+            errors: []
+        };
+
+        if (!outputText || typeof outputText !== 'string') {
+            result.errors.push('출력 텍스트가 비어있습니다.');
+            return result;
+        }
+
+        const lines = outputText.split('\n');
+        let currentRoom = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            // RM 패턴: <RM3>, <RM?>
+            const rmMatch = line.match(/^<(RM\d+|RM\?)>$/);
+            if (rmMatch) {
+                currentRoom = rmMatch[1];
+                continue;
+            }
+
+            // 환자 라인 파싱
+            // 형식: (병동구분)? 환자명님 치료유형 - 오더
+            // 예: "회복기 유혜영4님 운동 - M1" 또는 "유혜영4님 운동 - M1"
+            if (currentRoom && currentRoom !== 'RM?') {
+                // 환자명 패턴: (한글 2-4자 공백)? 한글+숫자님
+                const patientMatch = line.match(/^(?:([가-힣]{2,4})\s+)?([가-힣0-9]+)님/);
+                if (patientMatch) {
+                    const ward = patientMatch[1] || '';
+                    const patientName = patientMatch[2];
+
+                    result.patients.push({
+                        name: patientName,
+                        room: currentRoom,
+                        ward: ward
+                    });
+                }
+            }
+        }
+
+        if (result.patients.length === 0) {
+            result.errors.push('저장할 환자 정보를 찾을 수 없습니다.');
+        }
+
+        return result;
+    }
+
+    // ========================================
     // Public API
     // ========================================
 
@@ -619,6 +688,7 @@ const Parser = (function () {
         parseInput,
         applyUnits,
         createOrderKey,
+        parseOutputForPatients,
         _splitOrderCodes: splitOrderCodes,
         _parseOrderCode: parseOrderCode,
         _getTherapyType: getTherapyType,

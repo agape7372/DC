@@ -341,6 +341,27 @@ section {
     border-color: var(--success-color);
 }
 
+.btn-save {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    background: var(--success-color);
+    color: white;
+    border: 1px solid var(--success-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-save:hover {
+    background: #1e7e34;
+    border-color: #1e7e34;
+}
+
+.btn-save.saved {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
 /* Patient Section */
 .patient-section {
     background: var(--bg-color);
