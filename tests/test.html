@@ -253,6 +253,7 @@
             testConstants();
             testParser();
             testParserEdgeCases();
+            testParserEnhancements();
             testStorage();
             testFormatter();
             testPatientManager();
@@ -527,6 +528,95 @@
                 const unitMap = { '이예지/김원순/RG': 3 };
                 const applied = Parser.applyUnits(orders, unitMap);
                 TestRunner.assertEqual(applied[0].unit, 3);
+            });
+        }
+
+        // ========================================
+        // Parser - 시간 형식 자동 보정 및 치료사명 상속 테스트
+        // ========================================
+
+        function testParserEnhancements() {
+            TestRunner.suite('Parser - 시간 형식 자동 보정');
+
+            TestRunner.test('4자리 숫자 → HH:MM 변환 (1440 → 14:40)', () => {
+                const result = Parser.parseLine('이예지/김원순/RG2/1440');
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertEqual(result.orders[0].time, '14:40');
+            });
+
+            TestRunner.test('4자리 범위 → HH:MM-HH:MM 변환 (1440-1510 → 14:40-15:10)', () => {
+                const result = Parser.parseLine('서원빈/한묘분님/RG2/1440-1510');
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertEqual(result.orders[0].time, '14:40-15:10');
+            });
+
+            TestRunner.test('괄호 안 4자리 숫자 형식 (RG2(1440-1510))', () => {
+                const result = Parser.parseLine('서원빈/한묘분님/RG2(1440-1510)');
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertEqual(result.orders[0].time, '14:40-15:10');
+                TestRunner.assertEqual(result.orders[0].unit, 2);
+            });
+
+            TestRunner.test('15분 단위 코드 - 4자리 시간으로 자동 계산', () => {
+                const result = Parser.parseLine('김희수/전동순님/RA2(1440-1510)');
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertEqual(result.orders[0].code, 'RA');
+                TestRunner.assertEqual(result.orders[0].unit, 2); // 30분 = 2단위
+                TestRunner.assertEqual(result.orders[0].time, '14:40-15:10');
+            });
+
+            TestRunner.test('콜론 있는 형식은 그대로 유지', () => {
+                const result = Parser.parseLine('이예지/김원순/RG2/14:40-15:10');
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertEqual(result.orders[0].time, '14:40-15:10');
+            });
+
+            TestRunner.suite('Parser - 치료사명 상속');
+
+            TestRunner.test('치료사명 상속 - 두 번째 줄에 치료사명 없음', () => {
+                const input = `박수진/조민수2님/M(08:30-09:00)
+유혜영4님/M(11:25-11:55)`;
+                const result = Parser.parseInput(input);
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertLength(result.orders, 2);
+                TestRunner.assertEqual(result.orders[0].therapist, '박수진');
+                TestRunner.assertEqual(result.orders[1].therapist, '박수진'); // 상속됨
+            });
+
+            TestRunner.test('치료사명 상속 - 여러 줄 연속', () => {
+                const input = `홍지민/김점자님/RG2(08:30-09:00)
+김점자님/RG2(15:15-15:45)
+김점자님/RA2(10:50-11:20)`;
+                const result = Parser.parseInput(input);
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertLength(result.orders, 3);
+                TestRunner.assertEqual(result.orders[0].therapist, '홍지민');
+                TestRunner.assertEqual(result.orders[1].therapist, '홍지민'); // 상속됨
+                TestRunner.assertEqual(result.orders[2].therapist, '홍지민'); // 상속됨
+            });
+
+            TestRunner.test('치료사명 변경 시 새로운 치료사로 상속', () => {
+                const input = `이예지/김원순/M7/11:25
+김원순/RG2/12:00
+신하연/문두순/N/13:00
+문두순/RM/14:00`;
+                const result = Parser.parseInput(input);
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertLength(result.orders, 4);
+                TestRunner.assertEqual(result.orders[0].therapist, '이예지');
+                TestRunner.assertEqual(result.orders[1].therapist, '이예지'); // 이예지 상속
+                TestRunner.assertEqual(result.orders[2].therapist, '신하연');
+                TestRunner.assertEqual(result.orders[3].therapist, '신하연'); // 신하연 상속
+            });
+
+            TestRunner.test('치료사명 상속 - 공백으로 시작하는 줄', () => {
+                const input = `박수진/조민수2님/COM(08:30-09:00)
+    유혜영4님/M(11:25-11:55)`;
+                const result = Parser.parseInput(input);
+                TestRunner.assertTrue(result.success);
+                TestRunner.assertLength(result.orders, 2);
+                TestRunner.assertEqual(result.orders[0].therapist, '박수진');
+                TestRunner.assertEqual(result.orders[1].therapist, '박수진'); // 상속됨
             });
         }
 

@@ -37,33 +37,90 @@ const Parser = (function () {
     }
 
     /**
-     * 시간 패턴인지 확인
+     * 시간 문자열 정규화 (콜론 없는 형식 자동 보정)
+     * @param {string} str - 시간 문자열
+     * @returns {string|null} - 정규화된 시간 또는 null
+     *
+     * 지원 형식:
+     * - 1440 → 14:40
+     * - 1440-1510 → 14:40-15:10
+     * - 14:40 → 14:40 (그대로)
+     * - 14:40-15:10 → 14:40-15:10 (그대로)
+     */
+    function normalizeTime(str) {
+        if (!str) return null;
+        const trimmed = str.trim();
+
+        // 이미 콜론이 있으면 그대로 반환
+        if (/^\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?$/.test(trimmed)) {
+            return trimmed;
+        }
+
+        // 4자리 숫자 형식: 1440 → 14:40
+        if (/^\d{4}$/.test(trimmed)) {
+            const hour = trimmed.slice(0, 2);
+            const min = trimmed.slice(2, 4);
+            return `${hour}:${min}`;
+        }
+
+        // 범위 형식: 1440-1510 → 14:40-15:10
+        const rangeMatch = trimmed.match(/^(\d{4})-(\d{4})$/);
+        if (rangeMatch) {
+            const startHour = rangeMatch[1].slice(0, 2);
+            const startMin = rangeMatch[1].slice(2, 4);
+            const endHour = rangeMatch[2].slice(0, 2);
+            const endMin = rangeMatch[2].slice(2, 4);
+            return `${startHour}:${startMin}-${endHour}:${endMin}`;
+        }
+
+        return null;
+    }
+
+    /**
+     * 시간 패턴인지 확인 (자동 보정 포함)
      * @param {string} str
      * @returns {boolean}
      */
     function isTimePattern(str) {
-        const trimmed = str.trim();
-        // HH:MM 또는 HH:MM-HH:MM
-        return /^\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?$/.test(trimmed);
+        return normalizeTime(str) !== null;
     }
 
     /**
-     * 괄호 안 시간 추출: M(10:15-10:45) → "10:15-10:45"
+     * 괄호 안 시간 추출 및 정규화: M(10:15-10:45) → "10:15-10:45"
      * @param {string} str
      * @returns {string|null}
+     *
+     * 지원 형식:
+     * - M(14:40-15:10) → "14:40-15:10"
+     * - M(1440-1510) → "14:40-15:10" (자동 보정)
      */
     function extractTimeFromParens(str) {
-        const match = str.match(/\((\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)\)$/);
-        return match ? match[1] : null;
+        // 콜론 있는 형식
+        const colonMatch = str.match(/\((\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)\)$/);
+        if (colonMatch) {
+            return colonMatch[1];
+        }
+
+        // 콜론 없는 형식 (4자리 숫자)
+        const noColonMatch = str.match(/\((\d{4}(?:-\d{4})?)\)$/);
+        if (noColonMatch) {
+            return normalizeTime(noColonMatch[1]);
+        }
+
+        return null;
     }
 
     /**
-     * 괄호 안 시간 제거: M(10:15-10:45) → M
+     * 괄호 안 시간 제거: M(10:15-10:45) → M, M(1440-1510) → M
      * @param {string} str
      * @returns {string}
      */
     function removeTimeInParens(str) {
-        return str.replace(/\(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?\)$/g, '');
+        // 콜론 있는 형식 제거
+        let result = str.replace(/\(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?\)$/g, '');
+        // 콜론 없는 형식 제거 (4자리 숫자)
+        result = result.replace(/\(\d{4}(?:-\d{4})?\)$/g, '');
+        return result;
     }
 
     /**
@@ -357,7 +414,7 @@ const Parser = (function () {
 
             // 1. 시간 패턴?
             if (isTimePattern(cleanField)) {
-                time = cleanField;
+                time = normalizeTime(cleanField);
                 continue;
             }
 
@@ -367,7 +424,7 @@ const Parser = (function () {
             for (const part of subParts) {
                 // 시간 패턴?
                 if (isTimePattern(part)) {
-                    time = part;
+                    time = normalizeTime(part);
                     continue;
                 }
 
@@ -474,6 +531,7 @@ const Parser = (function () {
         }
 
         let successCount = 0;
+        let lastTherapist = ''; // 이전 줄의 치료사명 (들여쓰기 처리용)
 
         for (let i = 0; i < lines.length; i++) {
             const lineResult = parseLine(lines[i]);
@@ -482,6 +540,16 @@ const Parser = (function () {
                 successCount++;
 
                 for (const order of lineResult.orders) {
+                    // 치료사명 상속: 현재 줄에 치료사명이 없으면 이전 치료사명 사용
+                    if (!order.therapist && lastTherapist) {
+                        order.therapist = lastTherapist;
+                    }
+
+                    // 현재 오더에 치료사명이 있으면 lastTherapist 업데이트
+                    if (order.therapist) {
+                        lastTherapist = order.therapist;
+                    }
+
                     result.orders.push(order);
 
                     // 단위 확인 필요 (평가, 비급여, 스킵 코드 제외)
