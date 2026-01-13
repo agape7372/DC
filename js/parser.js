@@ -325,6 +325,13 @@ const Parser = (function () {
                     unit = calculatedUnit;
                 }
             }
+            // 정의되지 않은 코드: 기본 2단위
+            else if (!is30MinUnitCode(codeOnly) && !is15MinUnitCode(codeOnly)) {
+                // 운동/작업 치료 코드가 아니면 기본 단위 적용 (경고 표시됨)
+                if (!isPhysicalTherapyCode(codeOnly) && !isOccupationalTherapyCode(codeOnly)) {
+                    unit = DEFAULT_UNIT;
+                }
+            }
         }
 
         return {

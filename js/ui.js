@@ -287,6 +287,7 @@ const UI = (function () {
         // 추가오더 파싱
         parsedAddOrders = [];
         let addUnitCheck = [];
+        let allWarnings = [];
         if (addInput) {
             const addResult = Parser.parseInput(addInput);
             if (addResult.success || addResult.orders.length > 0) {
@@ -295,6 +296,9 @@ const UI = (function () {
             }
             if (addResult.errors.length > 0) {
                 console.warn('추가오더 파싱 에러:', addResult.errors);
+            }
+            if (addResult.warnings.length > 0) {
+                allWarnings.push(...addResult.warnings);
             }
         }
 
@@ -310,6 +314,14 @@ const UI = (function () {
             if (deleteResult.errors.length > 0) {
                 console.warn('삭제오더 파싱 에러:', deleteResult.errors);
             }
+            if (deleteResult.warnings.length > 0) {
+                allWarnings.push(...deleteResult.warnings);
+            }
+        }
+
+        // 경고 메시지 표시 (정의되지 않은 코드 등)
+        if (allWarnings.length > 0) {
+            showToast(allWarnings.join('\n'), 'warning');
         }
 
         // 단위 확인 필요 여부 (추가오더만 - 삭제오더는 단위 무시)
