@@ -180,7 +180,10 @@ const PATTERNS = {
  * @returns {string}
  */
 function escapeHtml(str) {
-    if (!str) return '';
+    // 명시적으로 null/undefined만 빈 문자열로 변환
+    if (str === null || str === undefined) return '';
+    // 숫자나 불린도 문자열로 변환
+    const text = String(str);
     const escapeMap = {
         '&': '&amp;',
         '<': '&lt;',
@@ -188,7 +191,7 @@ function escapeHtml(str) {
         '"': '&quot;',
         "'": '&#39;'
     };
-    return str.replace(/[&<>"']/g, char => escapeMap[char]);
+    return text.replace(/[&<>"']/g, char => escapeMap[char]);
 }
 
 /**
@@ -302,10 +305,23 @@ function calculateMinutesFromTime(timeStr) {
     const endHour = parseInt(match[3], 10);
     const endMin = parseInt(match[4], 10);
 
-    const startTotal = startHour * 60 + startMin;
-    const endTotal = endHour * 60 + endMin;
+    let startTotal = startHour * 60 + startMin;
+    let endTotal = endHour * 60 + endMin;
 
-    return endTotal - startTotal;
+    // 자정 넘어가는 경우 처리 (23:30-00:30)
+    if (endTotal < startTotal) {
+        endTotal += 24 * 60; // 다음날로 계산
+    }
+
+    const diff = endTotal - startTotal;
+
+    // 음수 결과 방지 (이미 위에서 처리되었지만 안전장치)
+    if (diff < 0) {
+        console.warn(`잘못된 시간 범위: ${timeStr}`);
+        return null;
+    }
+
+    return diff;
 }
 
 /**

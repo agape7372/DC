@@ -101,6 +101,7 @@ const UI = (function () {
         elements.convertBtn = document.getElementById('convertBtn');
         elements.copyBtn = document.getElementById('copyBtn');
         elements.sortRmBtn = document.getElementById('sortRmBtn');
+        elements.saveRmBtn = document.getElementById('saveRmBtn');
 
         elements.unitCheckSection = document.getElementById('unitCheckSection');
         elements.unitCheckList = document.getElementById('unitCheckList');
@@ -178,6 +179,9 @@ const UI = (function () {
 
         // RM 정렬 버튼
         elements.sortRmBtn.addEventListener('click', handleSortRm);
+
+        // RM 저장 버튼
+        elements.saveRmBtn.addEventListener('click', handleSaveRm);
 
         // 치료사 관리
         elements.manageTherapistBtn.addEventListener('click', openTherapistModal);
@@ -287,6 +291,8 @@ const UI = (function () {
         // 추가오더 파싱
         parsedAddOrders = [];
         let addUnitCheck = [];
+        let allWarnings = [];
+        let allErrors = [];
         if (addInput) {
             const addResult = Parser.parseInput(addInput);
             if (addResult.success || addResult.orders.length > 0) {
@@ -295,6 +301,10 @@ const UI = (function () {
             }
             if (addResult.errors.length > 0) {
                 console.warn('추가오더 파싱 에러:', addResult.errors);
+                allErrors.push(...addResult.errors.map(err => `[추가] ${err}`));
+            }
+            if (addResult.warnings.length > 0) {
+                allWarnings.push(...addResult.warnings);
             }
         }
 
@@ -309,7 +319,23 @@ const UI = (function () {
             }
             if (deleteResult.errors.length > 0) {
                 console.warn('삭제오더 파싱 에러:', deleteResult.errors);
+                allErrors.push(...deleteResult.errors.map(err => `[삭제] ${err}`));
             }
+            if (deleteResult.warnings.length > 0) {
+                allWarnings.push(...deleteResult.warnings);
+            }
+        }
+
+        // 파싱 에러 표시 (최대 3개)
+        if (allErrors.length > 0) {
+            const errorMsg = allErrors.slice(0, 3).join('\n');
+            const moreMsg = allErrors.length > 3 ? `\n... 외 ${allErrors.length - 3}개` : '';
+            showToast('일부 라인 파싱 실패:\n' + errorMsg + moreMsg, 'warning');
+        }
+
+        // 경고 메시지 표시 (정의되지 않은 코드 등)
+        if (allWarnings.length > 0) {
+            showToast(allWarnings.join('\n'), 'warning');
         }
 
         // 단위 확인 필요 여부 (추가오더만 - 삭제오더는 단위 무시)
@@ -622,6 +648,53 @@ const UI = (function () {
         result.push(...footerLines);
 
         return result.join('\n');
+    }
+
+    /**
+     * RM 정보 저장
+     */
+    function handleSaveRm() {
+        // innerText 사용 - contenteditable의 줄바꿈 보존
+        const text = elements.outputArea.innerText;
+
+        if (!text || text.trim() === '' || text === '변환 결과가 여기에 표시됩니다.') {
+            showToast('저장할 내용이 없습니다.', 'warning');
+            return;
+        }
+
+        // 출력 텍스트에서 환자 정보 추출
+        const parseResult = Parser.parseOutputForPatients(text);
+
+        if (parseResult.errors.length > 0) {
+            showToast(parseResult.errors.join('\n'), 'warning');
+            return;
+        }
+
+        if (parseResult.patients.length === 0) {
+            showToast('저장할 환자 정보를 찾을 수 없습니다.', 'warning');
+            return;
+        }
+
+        // Storage에 환자 데이터 저장
+        const success = Storage.applyPatients(parseResult.patients);
+
+        if (success) {
+            // 저장 성공
+            updatePatientCount();
+
+            // 버튼 시각적 피드백
+            elements.saveRmBtn.classList.add('saved');
+            elements.saveRmBtn.textContent = '✓ 저장 완료';
+
+            setTimeout(() => {
+                elements.saveRmBtn.classList.remove('saved');
+                elements.saveRmBtn.textContent = '💾 RM 저장';
+            }, 2000);
+
+            showToast(`${parseResult.patients.length}명의 환자 RM 정보 저장 완료!`, 'success');
+        } else {
+            showToast('저장 중 오류가 발생했습니다.', 'error');
+        }
     }
 
     // ========================================

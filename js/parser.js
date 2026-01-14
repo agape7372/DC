@@ -37,33 +37,100 @@ const Parser = (function () {
     }
 
     /**
-     * 시간 패턴인지 확인
+     * 시간 문자열 정규화 (콜론 없는 형식 자동 보정)
+     * @param {string} str - 시간 문자열
+     * @returns {string|null} - 정규화된 시간 또는 null
+     *
+     * 지원 형식:
+     * - 1440 → 14:40
+     * - 1440-1510 → 14:40-15:10
+     * - 14:40 → 14:40 (그대로)
+     * - 14:40-15:10 → 14:40-15:10 (그대로)
+     */
+    function normalizeTime(str) {
+        if (!str) return null;
+        const trimmed = str.trim();
+
+        // 이미 콜론이 있으면 그대로 반환
+        if (/^\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?$/.test(trimmed)) {
+            return trimmed;
+        }
+
+        // 4자리 숫자 형식: 1440 → 14:40 (유효성 검증 추가)
+        if (/^\d{4}$/.test(trimmed)) {
+            const hour = parseInt(trimmed.slice(0, 2), 10);
+            const min = parseInt(trimmed.slice(2, 4), 10);
+            // 유효한 시간인지 검증
+            if (hour >= 0 && hour <= 23 && min >= 0 && min <= 59) {
+                return `${trimmed.slice(0, 2)}:${trimmed.slice(2, 4)}`;
+            }
+            return null; // 유효하지 않은 시간
+        }
+
+        // 범위 형식: 1440-1510 → 14:40-15:10 (유효성 검증 추가)
+        const rangeMatch = trimmed.match(/^(\d{4})-(\d{4})$/);
+        if (rangeMatch) {
+            const startHour = parseInt(rangeMatch[1].slice(0, 2), 10);
+            const startMin = parseInt(rangeMatch[1].slice(2, 4), 10);
+            const endHour = parseInt(rangeMatch[2].slice(0, 2), 10);
+            const endMin = parseInt(rangeMatch[2].slice(2, 4), 10);
+
+            // 유효한 시간인지 검증
+            if (startHour >= 0 && startHour <= 23 && startMin >= 0 && startMin <= 59 &&
+                endHour >= 0 && endHour <= 23 && endMin >= 0 && endMin <= 59) {
+                return `${rangeMatch[1].slice(0, 2)}:${rangeMatch[1].slice(2, 4)}-${rangeMatch[2].slice(0, 2)}:${rangeMatch[2].slice(2, 4)}`;
+            }
+            return null; // 유효하지 않은 시간
+        }
+
+        return null;
+    }
+
+    /**
+     * 시간 패턴인지 확인 (자동 보정 포함)
      * @param {string} str
      * @returns {boolean}
      */
     function isTimePattern(str) {
-        const trimmed = str.trim();
-        // HH:MM 또는 HH:MM-HH:MM
-        return /^\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?$/.test(trimmed);
+        return normalizeTime(str) !== null;
     }
 
     /**
-     * 괄호 안 시간 추출: M(10:15-10:45) → "10:15-10:45"
+     * 괄호 안 시간 추출 및 정규화: M(10:15-10:45) → "10:15-10:45"
      * @param {string} str
      * @returns {string|null}
+     *
+     * 지원 형식:
+     * - M(14:40-15:10) → "14:40-15:10"
+     * - M(1440-1510) → "14:40-15:10" (자동 보정)
      */
     function extractTimeFromParens(str) {
-        const match = str.match(/\((\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)\)$/);
-        return match ? match[1] : null;
+        // 콜론 있는 형식
+        const colonMatch = str.match(/\((\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)\)$/);
+        if (colonMatch) {
+            return colonMatch[1];
+        }
+
+        // 콜론 없는 형식 (4자리 숫자)
+        const noColonMatch = str.match(/\((\d{4}(?:-\d{4})?)\)$/);
+        if (noColonMatch) {
+            return normalizeTime(noColonMatch[1]);
+        }
+
+        return null;
     }
 
     /**
-     * 괄호 안 시간 제거: M(10:15-10:45) → M
+     * 괄호 안 시간 제거: M(10:15-10:45) → M, M(1440-1510) → M
      * @param {string} str
      * @returns {string}
      */
     function removeTimeInParens(str) {
-        return str.replace(/\(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?\)$/g, '');
+        // 콜론 있는 형식 제거
+        let result = str.replace(/\(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?\)$/g, '');
+        // 콜론 없는 형식 제거 (4자리 숫자)
+        result = result.replace(/\(\d{4}(?:-\d{4})?\)$/g, '');
+        return result;
     }
 
     /**
@@ -268,6 +335,13 @@ const Parser = (function () {
                     unit = calculatedUnit;
                 }
             }
+            // 정의되지 않은 코드: 기본 2단위
+            else if (!is30MinUnitCode(codeOnly) && !is15MinUnitCode(codeOnly)) {
+                // 운동/작업 치료 코드가 아니면 기본 단위 적용 (경고 표시됨)
+                if (!isPhysicalTherapyCode(codeOnly) && !isOccupationalTherapyCode(codeOnly)) {
+                    unit = DEFAULT_UNIT;
+                }
+            }
         }
 
         return {
@@ -357,7 +431,7 @@ const Parser = (function () {
 
             // 1. 시간 패턴?
             if (isTimePattern(cleanField)) {
-                time = cleanField;
+                time = normalizeTime(cleanField);
                 continue;
             }
 
@@ -367,7 +441,7 @@ const Parser = (function () {
             for (const part of subParts) {
                 // 시간 패턴?
                 if (isTimePattern(part)) {
-                    time = part;
+                    time = normalizeTime(part);
                     continue;
                 }
 
@@ -474,6 +548,7 @@ const Parser = (function () {
         }
 
         let successCount = 0;
+        let lastTherapist = ''; // 이전 줄의 치료사명 (들여쓰기 처리용)
 
         for (let i = 0; i < lines.length; i++) {
             const lineResult = parseLine(lines[i]);
@@ -482,6 +557,16 @@ const Parser = (function () {
                 successCount++;
 
                 for (const order of lineResult.orders) {
+                    // 치료사명 상속: 현재 줄에 치료사명이 없으면 이전 치료사명 사용
+                    if (!order.therapist && lastTherapist) {
+                        order.therapist = lastTherapist;
+                    }
+
+                    // 현재 오더에 치료사명이 있으면 lastTherapist 업데이트
+                    if (order.therapist) {
+                        lastTherapist = order.therapist;
+                    }
+
                     result.orders.push(order);
 
                     // 단위 확인 필요 (평가, 비급여, 스킵 코드 제외)
@@ -536,6 +621,75 @@ const Parser = (function () {
     }
 
     // ========================================
+    // 출력 텍스트 파싱 (RM 정보 추출)
+    // ========================================
+
+    /**
+     * 출력 텍스트에서 환자 RM 정보 추출
+     *
+     * 형식:
+     * <RM3>
+     * 유혜영4님 운동 - M1
+     * 김철수님 작업 - C1
+     *
+     * <RM5>
+     * 박영희님 운동 - RG2
+     *
+     * @param {string} outputText - 출력 텍스트
+     * @returns {{patients: Array<{name: string, room: string, ward: string}>, errors: string[]}}
+     */
+    function parseOutputForPatients(outputText) {
+        const result = {
+            patients: [],
+            errors: []
+        };
+
+        if (!outputText || typeof outputText !== 'string') {
+            result.errors.push('출력 텍스트가 비어있습니다.');
+            return result;
+        }
+
+        const lines = outputText.split('\n');
+        let currentRoom = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            // RM 패턴: <RM3>, <RM?>
+            const rmMatch = line.match(/^<(RM\d+|RM\?)>$/);
+            if (rmMatch) {
+                currentRoom = rmMatch[1];
+                continue;
+            }
+
+            // 환자 라인 파싱
+            // 형식: (병동구분)? 환자명님 치료유형 - 오더
+            // 예: "회복기 유혜영4님 운동 - M1" 또는 "유혜영4님 운동 - M1"
+            if (currentRoom && currentRoom !== 'RM?') {
+                // 환자명 패턴: (한글 2-4자 공백)? 한글+숫자님
+                const patientMatch = line.match(/^(?:([가-힣]{2,4})\s+)?([가-힣0-9]+)님/);
+                if (patientMatch) {
+                    const ward = patientMatch[1] || '';
+                    const patientName = patientMatch[2];
+
+                    result.patients.push({
+                        name: patientName,
+                        room: currentRoom,
+                        ward: ward
+                    });
+                }
+            }
+        }
+
+        if (result.patients.length === 0) {
+            result.errors.push('저장할 환자 정보를 찾을 수 없습니다.');
+        }
+
+        return result;
+    }
+
+    // ========================================
     // Public API
     // ========================================
 
@@ -544,6 +698,7 @@ const Parser = (function () {
         parseInput,
         applyUnits,
         createOrderKey,
+        parseOutputForPatients,
         _splitOrderCodes: splitOrderCodes,
         _parseOrderCode: parseOrderCode,
         _getTherapyType: getTherapyType,
