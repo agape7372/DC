@@ -408,15 +408,14 @@ const Parser = (function () {
         // 토큰 기반 순차 파싱 (구분자 독립적)
         // ========================================
 
-        // 1. 전처리: "님" 제거, 구분자 통일, 괄호 분리
+        // 1. 전처리: "님" 제거, 구분자 통일 (괄호는 유지!)
         let normalized = trimmedLine
             .replace(/님/g, '')              // "님" 제거
             .replace(/[\/:\t]+/g, ' ')      // 구분자를 공백으로
-            .replace(/\(/g, ' (')           // 여는 괄호 앞에 공백
             .replace(PATTERNS.EXTRA_ERROR, '')  // 가산오류 텍스트 제거
             .trim();
 
-        // 2. 토큰 분리
+        // 2. 토큰 분리 (괄호는 앞 토큰과 붙여서 유지)
         const tokens = normalized.split(/\s+/).filter(t => t);
 
         console.log('[토큰 파싱]', {line: trimmedLine, normalized, tokens});
@@ -427,8 +426,8 @@ const Parser = (function () {
         let time = null;
         let therapist = null;
 
-        for (const token of tokens) {
-            // 빈 토큰 제외
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
             if (!token) continue;
 
             // 1. 시간 패턴? (괄호 포함: (08:30-09:00))
@@ -439,11 +438,20 @@ const Parser = (function () {
                 continue;
             }
 
-            // 2. 오더 코드?
+            // 2. 오더 코드? (다음 토큰이 괄호 시간이면 합치기)
             if (isOrderCodePattern(token)) {
-                const codes = splitOrderCodes(token);
+                let orderToken = token;
+
+                // 다음 토큰이 괄호 시간이면 합치기: RM + (08:30-09:00) → RM(08:30-09:00)
+                if (i + 1 < tokens.length && /^\([\d:-]+\)$/.test(tokens[i + 1])) {
+                    orderToken = token + tokens[i + 1];
+                    i++; // 다음 토큰 스킵
+                    console.log('[오더+시간 합침]', orderToken);
+                }
+
+                const codes = splitOrderCodes(orderToken);
                 orderCodes.push(...codes);
-                console.log('[오더 인식]', {token, codes});
+                console.log('[오더 인식]', {token: orderToken, codes});
                 continue;
             }
 
