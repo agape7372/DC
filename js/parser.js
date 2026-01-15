@@ -442,7 +442,19 @@ const Parser = (function () {
                 // 이름 두 개 연속: 첫 번째는 치료사, 두 번째는 환자
                 therapist = normalizedFirst;
                 patient = normalizedSecond;
-                fields = fields.slice(2); // 처음 두 필드 제거
+
+                // 두 번째 필드에서 이름 부분 제거 후 나머지 유지
+                // 예: "김점자님: RG2(08:30-09:00)" → ": RG2(08:30-09:00)" → "RG2(08:30-09:00)"
+                const afterName = cleanSecond.substring(secondNameOnly.length).trim();
+                const cleanedAfterName = afterName.replace(/^[:\s\/]+/, '').trim();
+
+                if (cleanedAfterName) {
+                    // 첫 번째 필드 제거, 두 번째 필드를 cleanedAfterName으로 교체, 나머지 필드 유지
+                    fields = [cleanedAfterName, ...fields.slice(2)];
+                } else {
+                    // 이름만 있었던 경우 (예: "최예원/김정원7/N")
+                    fields = fields.slice(2);
+                }
             }
             // 이름이 하나만 있는 경우는 아래 for loop에서 환자로 처리됨
         }
