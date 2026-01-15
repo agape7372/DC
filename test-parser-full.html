@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Parser 완전 테스트</title>
+</head>
+<body>
+    <h1>Parser 완전 테스트</h1>
+    <div id="output"></div>
+
+    <script src="js/constants.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/parser.js"></script>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(msg) {
+            const p = document.createElement('p');
+            p.textContent = msg;
+            output.appendChild(p);
+            console.log(msg);
+        }
+
+        log('=== Parser 완전 테스트 ===');
+
+        const testInput = "박수진/조민수2님 : RM(08:30-09:00)";
+        log('입력: ' + testInput);
+
+        try {
+            const result = Parser.parseInput(testInput);
+
+            log('\n=== 파싱 결과 ===');
+            log('success: ' + result.success);
+            log('orders.length: ' + result.orders.length);
+            log('errors: ' + JSON.stringify(result.errors));
+            log('warnings: ' + JSON.stringify(result.warnings));
+
+            if (result.orders.length > 0) {
+                log('\n=== 오더 상세 ===');
+                result.orders.forEach((order, i) => {
+                    log(`\n오더 ${i}:`);
+                    log('  therapist: ' + order.therapist);
+                    log('  patient: ' + order.patient);
+                    log('  code: ' + order.code);
+                    log('  unit: ' + order.unit);
+                    log('  time: ' + order.time);
+                    log('  therapyType: ' + order.therapyType);
+                });
+            } else {
+                log('\n!!! 오더가 0개입니다 !!!');
+                log('에러 메시지를 확인하세요.');
+            }
+
+        } catch (error) {
+            log('\n!!! 에러 발생 !!!');
+            log('에러: ' + error.message);
+            log('스택: ' + error.stack);
+        }
+
+        log('\n=== 콘솔 로그 확인 ===');
+        log('F12를 눌러 개발자 도구에서 상세 로그를 확인하세요.');
+    </script>
+</body>
+</html>
