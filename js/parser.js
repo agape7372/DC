@@ -419,12 +419,27 @@ const Parser = (function () {
         // 토큰 기반 순차 파싱 (구분자 독립적)
         // ========================================
 
-        // 1. 전처리: "님" 제거, 구분자 통일 (괄호는 유지!)
-        let normalized = trimmedLine
+        // 1. 전처리: "님" 제거, 구분자 통일 (괄호 안 시간은 보호!)
+
+        // 1-1. 괄호 안 시간을 임시 플레이스홀더로 치환 (콜론 보호)
+        const timeInParensMatches = [];
+        let normalized = trimmedLine.replace(/\([\d:-]+\)/g, (match) => {
+            const placeholder = `__TIME${timeInParensMatches.length}__`;
+            timeInParensMatches.push(match);
+            return placeholder;
+        });
+
+        // 1-2. 전처리: "님" 제거, 구분자를 공백으로
+        normalized = normalized
             .replace(/님/g, '')              // "님" 제거
-            .replace(/[\/:\t]+/g, ' ')      // 구분자를 공백으로
+            .replace(/[\/:\t]+/g, ' ')      // 구분자를 공백으로 (괄호 안 시간은 이미 치환됨)
             .replace(PATTERNS.EXTRA_ERROR, '')  // 가산오류 텍스트 제거
             .trim();
+
+        // 1-3. 플레이스홀더를 원래 시간으로 복원
+        timeInParensMatches.forEach((time, index) => {
+            normalized = normalized.replace(`__TIME${index}__`, time);
+        });
 
         // 2. 토큰 분리 (괄호는 앞 토큰과 붙여서 유지)
         const tokens = normalized.split(/\s+/).filter(t => t);
