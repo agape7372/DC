@@ -176,6 +176,16 @@ const Parser = (function () {
     }
 
     /**
+     * 이름 정규화 ("님" 접미사 제거)
+     * @param {string} str
+     * @returns {string}
+     */
+    function normalizeName(str) {
+        if (!str) return '';
+        return str.trim().replace(/님$/, '');
+    }
+
+    /**
      * 환자명인지 확인
      * @param {string} str
      * @returns {boolean}
@@ -184,12 +194,15 @@ const Parser = (function () {
         const trimmed = str.trim();
         if (!trimmed) return false;
 
-        // 등록된 환자인지 확인
-        const patient = Storage.getPatientByName(trimmed);
+        // "님" 제거 후 검증
+        const normalized = normalizeName(trimmed);
+
+        // 등록된 환자인지 확인 (원본과 정규화된 이름 모두 확인)
+        const patient = Storage.getPatientByName(trimmed) || Storage.getPatientByName(normalized);
         if (patient) return true;
 
         // 한글 이름 패턴 (2-4자 + 동명이인 숫자) - 오더 코드 아닌 경우
-        if (/^[가-힣]{2,4}\d*$/.test(trimmed) && !isOrderCodePattern(trimmed)) {
+        if (/^[가-힣]{2,4}\d*$/.test(normalized) && !isOrderCodePattern(normalized)) {
             return true;
         }
 
@@ -410,15 +423,19 @@ const Parser = (function () {
             const cleanFirst = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
             const cleanSecond = fields[1].replace(PATTERNS.EXTRA_ERROR, '').trim();
 
+            // "님" 제거 후 검증
+            const normalizedFirst = normalizeName(cleanFirst);
+            const normalizedSecond = normalizeName(cleanSecond);
+
             // 이름 패턴: 한글 2-4자 + 선택적 숫자 (동명이인)
             const namePattern = /^[가-힣]{2,4}\d*$/;
-            const firstIsName = namePattern.test(cleanFirst) && !isOrderCodePattern(cleanFirst);
-            const secondIsName = namePattern.test(cleanSecond) && !isOrderCodePattern(cleanSecond);
+            const firstIsName = namePattern.test(normalizedFirst) && !isOrderCodePattern(normalizedFirst);
+            const secondIsName = namePattern.test(normalizedSecond) && !isOrderCodePattern(normalizedSecond);
 
             if (firstIsName && secondIsName) {
                 // 이름 두 개 연속: 치료사/환자
-                therapist = cleanFirst;
-                patient = cleanSecond;
+                therapist = normalizedFirst;
+                patient = normalizedSecond;
                 fields = fields.slice(2); // 처음 두 필드 제거
             }
             // 이름이 하나만 있는 경우는 아래 for loop에서 환자로 처리됨
