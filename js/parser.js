@@ -26,13 +26,14 @@ const Parser = (function () {
     }
 
     /**
-     * 구분자 자동 감지
+     * 구분자 자동 감지 (탭 > 슬래시 > 콜론 > 공백)
      * @param {string} line
      * @returns {string|RegExp}
      */
     function detectDelimiter(line) {
         if (line.includes('\t')) return '\t';
         if (line.includes('/')) return '/';
+        if (line.includes(':')) return ':';
         return /\s+/; // 공백
     }
 
@@ -418,14 +419,19 @@ const Parser = (function () {
         let time = null;
         let therapist = null;
 
-        // "/" 구분자에서 이름 두 개 연속 감지 (치료사/환자 형식)
-        if (delimiter === '/' && fields.length >= 2) {
+        // 이름 두 개 연속 감지 (치료사/환자 또는 치료사:환자 형식)
+        // "/" 또는 ":" 구분자일 때 적용
+        if ((delimiter === '/' || delimiter === ':') && fields.length >= 2) {
             const cleanFirst = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
             const cleanSecond = fields[1].replace(PATTERNS.EXTRA_ERROR, '').trim();
 
+            // 두 번째 필드에서 이름 부분만 추출 (뒤에 다른 구분자가 있을 수 있음)
+            // 예: "한효준님: RG2" → "한효준님"
+            const secondNameOnly = cleanSecond.split(/[\s:\/]+/)[0];
+
             // "님" 제거 후 검증
             const normalizedFirst = normalizeName(cleanFirst);
-            const normalizedSecond = normalizeName(cleanSecond);
+            const normalizedSecond = normalizeName(secondNameOnly);
 
             // 이름 패턴: 한글 2-4자 + 선택적 숫자 (동명이인)
             const namePattern = /^[가-힣]{2,4}\d*$/;
@@ -433,7 +439,7 @@ const Parser = (function () {
             const secondIsName = namePattern.test(normalizedSecond) && !isOrderCodePattern(normalizedSecond);
 
             if (firstIsName && secondIsName) {
-                // 이름 두 개 연속: 치료사/환자
+                // 이름 두 개 연속: 첫 번째는 치료사, 두 번째는 환자
                 therapist = normalizedFirst;
                 patient = normalizedSecond;
                 fields = fields.slice(2); // 처음 두 필드 제거
@@ -470,23 +476,24 @@ const Parser = (function () {
 
                 // 환자명?
                 if (!patient && isPatientName(part)) {
-                    patient = part;
+                    patient = normalizeName(part);
                     continue;
                 }
 
                 // 한글 2-4자(+동명이인 숫자)면 이름으로 추정
-                if (/^[가-힣]{2,4}\d*$/.test(part)) {
+                const normalizedPart = normalizeName(part);
+                if (/^[가-힣]{2,4}\d*$/.test(normalizedPart)) {
                     if (!patient) {
-                        patient = part;
+                        patient = normalizedPart;
                     } else if (!therapist) {
-                        therapist = part;
+                        therapist = normalizedPart;
                     }
                     continue;
                 }
 
                 // 그 외는 치료사로 저장
                 if (!therapist) {
-                    therapist = part;
+                    therapist = normalizeName(part);
                 }
             }
         }
