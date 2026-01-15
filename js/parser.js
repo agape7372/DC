@@ -343,10 +343,21 @@ const Parser = (function () {
                 unit = 1;
             }
             // 15분 = 1단위 오더: 시간으로 계산
-            else if (is15MinUnitCode(codeOnly) && timeStr) {
-                const calculatedUnit = calculateUnitsFromTime(timeStr);
-                if (calculatedUnit !== null) {
-                    unit = calculatedUnit;
+            else if (is15MinUnitCode(codeOnly)) {
+                if (timeStr) {
+                    const calculatedUnit = calculateUnitsFromTime(timeStr);
+                    if (calculatedUnit !== null) {
+                        unit = calculatedUnit;
+                        console.log('[15분 코드 시간 계산]', {codeOnly, timeStr, unit});
+                    } else {
+                        // 시간 계산 실패 시 기본 2단위
+                        unit = DEFAULT_UNIT;
+                        console.warn('[15분 코드 시간 계산 실패 - 기본 단위 적용]', {codeOnly, timeStr});
+                    }
+                } else {
+                    // 시간 없으면 기본 2단위
+                    unit = DEFAULT_UNIT;
+                    console.warn('[15분 코드 시간 없음 - 기본 단위 적용]', {codeOnly});
                 }
             }
             // 정의되지 않은 코드: 기본 2단위
