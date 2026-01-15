@@ -294,6 +294,13 @@ const UI = (function () {
      * 변환 버튼 클릭 핸들러
      */
     function handleConvert() {
+        // 단위 확인 섹션이 표시된 상태면 → 단위 적용 후 출력
+        if (elements.unitCheckSection.style.display === 'block') {
+            applyUnitsAndGenerate();
+            return;
+        }
+
+        // 단위 확인 섹션이 없는 상태 → 파싱 수행
         const addInput = elements.addInputArea.value.trim();
         const deleteInput = elements.deleteInputArea.value.trim();
 
@@ -408,19 +415,6 @@ const UI = (function () {
                 unitCheckOrders[index].unit = unit;
             });
         });
-
-        // 변환 버튼 클릭 시 단위 적용 후 출력
-        const existingBtn = elements.unitCheckSection.querySelector('.btn-apply-unit');
-        if (existingBtn) existingBtn.remove();
-
-        const applyBtn = document.createElement('button');
-        applyBtn.className = 'btn-primary btn-apply-unit';
-        applyBtn.textContent = '변환';
-        applyBtn.style.marginTop = '12px';
-        applyBtn.addEventListener('click', () => {
-            applyUnitsAndGenerate();
-        });
-        elements.unitCheckList.appendChild(applyBtn);
     }
 
     /**
