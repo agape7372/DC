@@ -376,7 +376,195 @@
 
 ---
 
-## Phase 9: [진행 예정]
+## Phase 9: 괄호 안 시간 보호 및 평가 코드 인식 개선 ✅
+
+**완료일**: 2026-01-15
+
+### 작업 내용
+
+#### 문제점 1: 괄호 안 콜론이 구분자로 인식
+- `박수진/조민수2님 : RM(08:30-09:00)` 입력 시 "변환할 오더가 없습니다" 오류
+- 원인: 전처리 단계에서 `(08:30-09:00)` 안의 `:` 를 공백으로 치환
+- 결과: `RM(08 30-09 00)` → 오더 코드 인식 실패
+
+#### 해결 방법: 플레이스홀더 기법 (`0ba833c`)
+
+1. **전처리 전에 괄호 안 시간 추출**
+   ```javascript
+   const timeInParensMatches = [];
+   let normalized = trimmedLine.replace(/\([\d:-]+\)/g, (match) => {
+       const placeholder = `__TIME${timeInParensMatches.length}__`;
+       timeInParensMatches.push(match);
+       return placeholder;
+   });
+   ```
+
+2. **구분자 치환 (괄호 안 시간은 이미 보호됨)**
+   ```javascript
+   normalized = normalized
+       .replace(/님/g, '')
+       .replace(/[\/:\t]+/g, ' ')  // 이제 괄호 밖 콜론만 치환
+   ```
+
+3. **플레이스홀더를 원래 시간으로 복원**
+   ```javascript
+   timeInParensMatches.forEach((time, index) => {
+       normalized = normalized.replace(`__TIME${index}__`, time);
+   });
+   ```
+
+#### 문제점 2: PHQ-9 같은 하이픈 포함 평가 코드 미인식
+
+- `isEvaluationCode("PHQ-9")`가 false 반환
+- 원인: 끝의 숫자를 먼저 제거 → `"PHQ-9"` → `"PHQ-"` → 매칭 실패
+- 결과: 평가 오더가 치료 오더로 잘못 분류
+
+#### 해결 방법: 2단계 체크 (`0ba833c`)
+
+```javascript
+function isEvaluationCode(code) {
+    const upperCode = code.toUpperCase();
+
+    // 1차: 원본 코드 그대로 체크 (PHQ-9 같은 하이픈 포함 코드)
+    if (ALL_EVALUATION_CODES.some(c => c.toUpperCase() === upperCode)) {
+        return true;
+    }
+
+    // 2차: 끝의 숫자 제거 후 체크 (ROM2 → ROM)
+    const codeWithoutNum = upperCode.replace(/\d+$/, '');
+    return ALL_EVALUATION_CODES.some(c => c.toUpperCase() === codeWithoutNum);
+}
+```
+
+### 개선 효과
+- ✅ 괄호 안 시간 형식 완전 보호 (콜론 유지)
+- ✅ PHQ-9, PHQ-92 등 하이픈 포함 코드 정확히 인식
+- ✅ 토큰 기반 파싱 안정성 향상
+
+### 테스트 케이스
+- `박수진/조민수2님 : RM(08:30-09:00)` → 정상 파싱 ✓
+- `PHQ-9` → 평가 오더로 인식 ✓
+- `ROM2` → 평가 오더로 인식 ✓
+
+### 커밋
+- `0ba833c` - fix: PHQ-9 같은 하이픈 포함 평가 코드 인식 버그 수정
+
+---
+
+## Phase 10: 신규 오더 코드 추가 및 UI/UX 개선 ✅
+
+**완료일**: 2026-01-15
+
+### 작업 내용
+
+#### 1. 운동치료 코드 추가 (`30cc2cc`)
+
+**추가된 코드**:
+- **COM**: 운동치료 (30분 = 1단위)
+- **M7**: 운동치료 (30분 = 1단위, 비급여 코드)
+
+**constants.js 수정**:
+```javascript
+PHYSICAL_THERAPY_CODES.general: ['COM', 'CPM', 'F', 'M', 'M7', 'M15', ...]
+UNIT_30MIN_CODES: ['COM', 'CPM', 'F', 'M', 'M7', 'M15', ...]
+```
+
+#### 2. 데이터 백업/복원 기능 추가 (`ab3b35c`)
+
+**문제점**:
+- `file://` 프로토콜 사용 시 폴더 경로 변경 = localStorage origin 변경
+- 앱 업데이트 시 기존 데이터 (환자, 치료사, 설정) 손실
+
+**해결 방법**:
+
+1. **백업 기능** (storage.js)
+   ```javascript
+   Storage.exportData() // JSON 형식으로 전체 데이터 추출
+   ```
+   - 치료사 목록
+   - 환자 마스터 데이터
+   - 설정 (층, 직종, 선택된 치료사)
+   - 버전 및 백업 일시 포함
+
+2. **복원 기능** (storage.js)
+   ```javascript
+   Storage.importData(jsonString) // JSON 데이터 복원
+   ```
+   - 파일 형식 검증
+   - 데이터 무결성 체크
+   - 기존 데이터 덮어쓰기
+
+3. **UI 추가** (index.html, ui.js)
+   - 📤 데이터 백업 버튼
+   - 📥 데이터 복원 버튼
+   - 파일명: `orderApp_backup_YYYYMMDD_HHMM.json`
+
+**사용 시나리오**:
+1. 기존 앱에서 [📤 데이터 백업] 클릭
+2. JSON 파일 다운로드
+3. 새 앱 폴더 압축 해제
+4. [📥 데이터 복원] 클릭하여 백업 파일 업로드
+5. 모든 데이터 복원 완료
+
+#### 3. 단위 확인 UI 개선 (`f813fe7`)
+
+**문제점**:
+- 단위 확인 섹션 내부에 "변환" 버튼
+- 메인 "변환" 버튼과 중복
+- 사용자가 어떤 버튼을 눌러야 할지 혼란
+
+**해결 방법**:
+
+**Before**:
+```
+[입력 영역]
+[메인 변환 버튼]
+[단위 확인 섹션]
+  - 환자/오더 목록 + 단위 선택
+  - [변환 버튼]  ← 중복!
+[출력 영역]
+```
+
+**After**:
+```
+[입력 영역]
+[메인 변환 버튼]  ← 하나로 통합!
+[단위 확인 섹션]
+  - 환자/오더 목록 + 단위 선택
+[출력 영역]
+```
+
+**동작 방식**:
+1. 첫 클릭: 파싱 → 단위 확인 필요하면 섹션 표시
+2. 두 번째 클릭: 단위 적용 → 출력 생성
+
+```javascript
+function handleConvert() {
+    // 단위 확인 섹션이 표시된 상태면 → 단위 적용 후 출력
+    if (elements.unitCheckSection.style.display === 'block') {
+        applyUnitsAndGenerate();
+        return;
+    }
+
+    // 단위 확인 섹션이 없는 상태 → 파싱 수행
+    // ...
+}
+```
+
+### 개선 효과
+- ✅ COM, M7 코드 사용 가능
+- ✅ 앱 업데이트 시 데이터 손실 방지
+- ✅ UI 직관성 향상 (버튼 혼란 제거)
+- ✅ 사용자 경험 개선
+
+### 커밋
+- `30cc2cc` - feat: COM, M7 운동치료 코드 추가 (30분=1단위)
+- `ab3b35c` - feat: 데이터 백업/복원 기능 추가
+- `f813fe7` - refactor: 단위 확인 섹션 내부 버튼 제거, 메인 변환 버튼으로 통합
+
+---
+
+## Phase 11: [진행 예정]
 
 ### 계획된 작업
 - 추가 메모 필드 지원 ("1:1가산체크란 없음" 등)

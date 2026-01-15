@@ -47,7 +47,7 @@ const ModuleName = (function() {
 | 파일 | 역할 |
 |------|------|
 | `constants.js` | 오더 코드 분류, 상수, 유틸리티 함수 |
-| `storage.js` | localStorage CRUD (설정, 치료사, 환자) |
+| `storage.js` | localStorage CRUD (설정, 치료사, 환자), 백업/복원 |
 | `parser.js` | Excel 복사 텍스트 파싱 → ParsedOrder 객체 |
 | `formatter.js` | ParsedOrder → 메신저 양식 변환 |
 | `patient.js` | Excel 파일 업로드/파싱 (SheetJS) |
@@ -61,9 +61,9 @@ const ModuleName = (function() {
 ## Domain Concepts
 
 ### 오더 코드 분류
-- **운동치료 (Physical)**: CPM, F, M, M15, MM, N, N7, RG, RM, RN, P, RP
+- **운동치료 (Physical)**: COM, CPM, F, M, M7, M15, MM, N, N7, RG, RM, RN, P, RP
 - **작업치료 (Occupational)**: A, C, CA, D, H, H7, O7, RA, RD, RS, S, V, Y, 전산화인지
-- **평가 오더**: ROM, MMT, BBS (운동) / PHQ-9, CDR, MMSE, HAND, MBI, SNSB (작업)
+- **평가 오더**: ROM, MMT, BBS (운동) / PHQ-9, CDR, MMSE, HAND, MBI, SNSB, VFSS (작업)
 - **비급여 코드**: M7, N7, O7, H7 (숫자가 코드의 일부)
 
 ### 핵심 파싱 규칙
@@ -72,14 +72,23 @@ const ModuleName = (function() {
 3. **평가/치료 자동 분리**: 평가 오더는 `>` (당일), 치료 오더는 `~~>>` (계속)
 
 ### 오더 단위 자동 계산 규칙
-- **30분 기준 코드** (UNIT_30MIN_CODES): 시간 입력 시 자동 계산 (예: 90분 → 3단위)
-- **15분 기준 코드** (UNIT_15MIN_CODES): 시간 입력 시 자동 계산 (예: 60분 → 4단위)
-- **시간 형식**: `HH:MM` 또는 `HH:MM-HH:MM` (괄호 안 입력 가능)
-- **단위 확인 UI**: 시간 입력 시 단위 확인 섹션 표시 (기본값: 2단위)
+- **30분 기준 코드** (UNIT_30MIN_CODES): COM, CPM, F, M, M7, M15, N, N7, P (운동) / D, H, H7, O7, S, V, Y (작업)
+  - 시간 미입력 시 기본 1단위
+  - 시간 입력 시 자동 계산 (예: 90분 → 3단위)
+- **15분 기준 코드** (UNIT_15MIN_CODES): RG, RM, RN, RP, MM (운동) / RA, RD, RS (작업)
+  - 시간 입력 시 자동 계산 (예: 60분 → 4단위)
+  - 시간 미입력 시 단위 확인 필요 (기본값: 2단위)
+- **시간 형식**: `HH:MM` 또는 `HH:MM-HH:MM` (괄호 안 입력 가능, 4자리 숫자도 자동 변환)
+- **단위 확인 UI**: 15분 코드 시간 미입력 시 단위 확인 섹션 표시, 메인 변환 버튼으로 적용
 
 ### 입력/출력 형식
-- **입력**: `치료사/환자/오더코드/시간` (Excel 복사 형식)
+- **입력**: `치료사/환자/오더코드/시간` (Excel 복사 형식, 구분자: `/`, `:`, 탭, 공백)
 - **출력**: RM별로 그룹핑된 메신저 양식
+
+### 데이터 백업/복원
+- **백업**: 📤 데이터 백업 버튼으로 JSON 파일 다운로드 (치료사, 환자, 설정 포함)
+- **복원**: 📥 데이터 복원 버튼으로 백업 파일 업로드
+- **용도**: 앱 폴더 업데이트 시 데이터 손실 방지 (`file://` 프로토콜 사용 환경)
 
 ## Testing
 
