@@ -16,7 +16,7 @@
  */
 const PHYSICAL_THERAPY_CODES = {
     // 일반 오더
-    general: ['CPM', 'F', 'M', 'M15', 'MM', 'N', 'N7', 'RG', 'RM', 'RN', 'P', 'RP'],
+    general: ['COM', 'CPM', 'F', 'M', 'M7', 'M15', 'MM', 'N', 'N7', 'RG', 'RM', 'RN', 'P', 'RP'],
     // 평가 오더
     evaluation: ['ROM', 'MMT', 'BBS']
 };
@@ -49,11 +49,11 @@ const NON_REIMBURSABLE_CODES = ['M7', 'N7', 'O7', 'H7'];
 
 /**
  * 30분 = 1단위 오더 (단위 미지정 시 기본 1단위, 단위확인 스킵)
- * - 운동: CPM, F, M, M15, N, N7, P
+ * - 운동: COM, CPM, F, M, M7, M15, N, N7, P
  * - 작업: D, H, H7, O7, S, V, Y
  * - CA는 복합코드로 별도 처리 (C1+A1 = 30분)
  */
-const UNIT_30MIN_CODES = ['CPM', 'F', 'M', 'M15', 'N', 'N7', 'P', 'D', 'H', 'H7', 'O7', 'S', 'V', 'Y'];
+const UNIT_30MIN_CODES = ['COM', 'CPM', 'F', 'M', 'M7', 'M15', 'N', 'N7', 'P', 'D', 'H', 'H7', 'O7', 'S', 'V', 'Y'];
 
 /**
  * 15분 = 1단위 오더 (시간으로 단위 자동 계산 가능)
