@@ -448,6 +448,17 @@ const Parser = (function () {
                 const afterName = cleanSecond.substring(secondNameOnly.length).trim();
                 const cleanedAfterName = afterName.replace(/^[:\s\/]+/, '').trim();
 
+                console.log('[이름 두 개 감지]', {
+                    line: trimmedLine,
+                    therapist,
+                    patient,
+                    cleanSecond,
+                    secondNameOnly,
+                    afterName,
+                    cleanedAfterName,
+                    remainingFields: fields.slice(2)
+                });
+
                 if (cleanedAfterName) {
                     // 첫 번째 필드 제거, 두 번째 필드를 cleanedAfterName으로 교체, 나머지 필드 유지
                     fields = [cleanedAfterName, ...fields.slice(2)];
@@ -455,6 +466,8 @@ const Parser = (function () {
                     // 이름만 있었던 경우 (예: "최예원/김정원7/N")
                     fields = fields.slice(2);
                 }
+
+                console.log('[재구성된 fields]', fields);
             }
             // 이름이 하나만 있는 경우는 아래 for loop에서 환자로 처리됨
         }
@@ -511,13 +524,24 @@ const Parser = (function () {
         }
 
         // 유효성 검사: 환자명 + 오더코드 필수
+        console.log('[파싱 결과]', {
+            line: trimmedLine,
+            therapist,
+            patient,
+            orderCodes,
+            time,
+            fields
+        });
+
         if (!patient) {
             result.error = `환자명을 찾을 수 없습니다: "${trimmedLine}"`;
+            console.error('[파싱 실패 - 환자명 없음]', trimmedLine);
             return result;
         }
 
         if (orderCodes.length === 0) {
             result.error = `오더 코드를 찾을 수 없습니다: "${trimmedLine}"`;
+            console.error('[파싱 실패 - 오더코드 없음]', {patient, therapist, fields});
             return result;
         }
 
