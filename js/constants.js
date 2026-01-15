@@ -16,7 +16,7 @@
  */
 const PHYSICAL_THERAPY_CODES = {
     // 일반 오더
-    general: ['CPM', 'F', 'M', 'M15', 'MM', 'N', 'N7', 'RG', 'RM', 'RN', 'P', 'RP'],
+    general: ['COM', 'CPM', 'F', 'M', 'M7', 'M15', 'MM', 'N', 'N7', 'RG', 'RM', 'RN', 'P', 'RP'],
     // 평가 오더
     evaluation: ['ROM', 'MMT', 'BBS']
 };
@@ -49,11 +49,11 @@ const NON_REIMBURSABLE_CODES = ['M7', 'N7', 'O7', 'H7'];
 
 /**
  * 30분 = 1단위 오더 (단위 미지정 시 기본 1단위, 단위확인 스킵)
- * - 운동: CPM, F, M, M15, N, N7, P
+ * - 운동: COM, CPM, F, M, M7, M15, N, N7, P
  * - 작업: D, H, H7, O7, S, V, Y
  * - CA는 복합코드로 별도 처리 (C1+A1 = 30분)
  */
-const UNIT_30MIN_CODES = ['CPM', 'F', 'M', 'M15', 'N', 'N7', 'P', 'D', 'H', 'H7', 'O7', 'S', 'V', 'Y'];
+const UNIT_30MIN_CODES = ['COM', 'CPM', 'F', 'M', 'M7', 'M15', 'N', 'N7', 'P', 'D', 'H', 'H7', 'O7', 'S', 'V', 'Y'];
 
 /**
  * 15분 = 1단위 오더 (시간으로 단위 자동 계산 가능)
@@ -233,8 +233,16 @@ function isOccupationalTherapyCode(code) {
  * @returns {boolean}
  */
 function isEvaluationCode(code) {
-    const upperCode = code.toUpperCase().replace(/\d+$/, '');
-    return ALL_EVALUATION_CODES.some(c => c.toUpperCase() === upperCode);
+    const upperCode = code.toUpperCase();
+
+    // 1차: 원본 코드 그대로 체크 (PHQ-9 같은 하이픈 포함 코드)
+    if (ALL_EVALUATION_CODES.some(c => c.toUpperCase() === upperCode)) {
+        return true;
+    }
+
+    // 2차: 끝의 숫자 제거 후 체크 (ROM2 → ROM)
+    const codeWithoutNum = upperCode.replace(/\d+$/, '');
+    return ALL_EVALUATION_CODES.some(c => c.toUpperCase() === codeWithoutNum);
 }
 
 /**

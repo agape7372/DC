@@ -36,6 +36,11 @@ const UI = (function () {
         excelUpload: null,
         clearPatientBtn: null,
 
+        // 백업/복원
+        dataBackupBtn: null,
+        dataRestoreBtn: null,
+        dataRestoreUpload: null,
+
         // 치료사 모달
         therapistModal: null,
         therapistList: null,
@@ -110,6 +115,10 @@ const UI = (function () {
         elements.uploadBtn = document.getElementById('uploadBtn');
         elements.excelUpload = document.getElementById('excelUpload');
         elements.clearPatientBtn = document.getElementById('clearPatientBtn');
+
+        elements.dataBackupBtn = document.getElementById('dataBackupBtn');
+        elements.dataRestoreBtn = document.getElementById('dataRestoreBtn');
+        elements.dataRestoreUpload = document.getElementById('dataRestoreUpload');
 
         elements.therapistModal = document.getElementById('therapistModal');
         elements.therapistList = document.getElementById('therapistList');
@@ -196,6 +205,11 @@ const UI = (function () {
         elements.excelUpload.addEventListener('change', handleExcelUpload);
         elements.clearPatientBtn.addEventListener('click', handleClearPatients);
 
+        // 백업/복원
+        elements.dataBackupBtn.addEventListener('click', handleDataBackup);
+        elements.dataRestoreBtn.addEventListener('click', () => elements.dataRestoreUpload.click());
+        elements.dataRestoreUpload.addEventListener('change', handleDataRestore);
+
         // 환자 미리보기 모달
         elements.closePatientPreviewModal.addEventListener('click', closePatientPreviewModal);
         elements.cancelPatientUpload.addEventListener('click', closePatientPreviewModal);
@@ -280,6 +294,13 @@ const UI = (function () {
      * 변환 버튼 클릭 핸들러
      */
     function handleConvert() {
+        // 단위 확인 섹션이 표시된 상태면 → 단위 적용 후 출력
+        if (elements.unitCheckSection.style.display === 'block') {
+            applyUnitsAndGenerate();
+            return;
+        }
+
+        // 단위 확인 섹션이 없는 상태 → 파싱 수행
         const addInput = elements.addInputArea.value.trim();
         const deleteInput = elements.deleteInputArea.value.trim();
 
@@ -394,19 +415,6 @@ const UI = (function () {
                 unitCheckOrders[index].unit = unit;
             });
         });
-
-        // 변환 버튼 클릭 시 단위 적용 후 출력
-        const existingBtn = elements.unitCheckSection.querySelector('.btn-apply-unit');
-        if (existingBtn) existingBtn.remove();
-
-        const applyBtn = document.createElement('button');
-        applyBtn.className = 'btn-primary btn-apply-unit';
-        applyBtn.textContent = '변환';
-        applyBtn.style.marginTop = '12px';
-        applyBtn.addEventListener('click', () => {
-            applyUnitsAndGenerate();
-        });
-        elements.unitCheckList.appendChild(applyBtn);
     }
 
     /**
@@ -984,6 +992,87 @@ const UI = (function () {
             updatePatientCount();
             showToast('환자 데이터가 초기화되었습니다.', 'success');
         }
+    }
+
+    // ========================================
+    // 백업/복원
+    // ========================================
+
+    /**
+     * 데이터 백업 (JSON 파일 다운로드)
+     */
+    function handleDataBackup() {
+        try {
+            const jsonData = Storage.exportData();
+            const blob = new Blob([jsonData], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+
+            // 파일명에 현재 날짜/시간 포함
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const timeStr = now.toTimeString().slice(0, 5).replace(/:/g, '');
+            const filename = `orderApp_backup_${dateStr}_${timeStr}.json`;
+
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('백업 파일이 다운로드되었습니다.', 'success');
+        } catch (error) {
+            console.error('백업 오류:', error);
+            showToast('백업 중 오류가 발생했습니다: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * 데이터 복원 (JSON 파일 업로드)
+     */
+    function handleDataRestore(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // 파일 타입 확인
+        if (!file.name.endsWith('.json')) {
+            showToast('JSON 파일만 업로드할 수 있습니다.', 'error');
+            event.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                const jsonString = e.target.result;
+                const result = Storage.importData(jsonString);
+
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    // 데이터 복원 후 UI 업데이트
+                    updatePatientCount();
+                    renderTherapists();
+                    loadSettings();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('복원 오류:', error);
+                showToast('복원 중 오류가 발생했습니다: ' + error.message, 'error');
+            }
+
+            // 파일 입력 초기화 (같은 파일 다시 선택 가능)
+            event.target.value = '';
+        };
+
+        reader.onerror = function() {
+            showToast('파일을 읽을 수 없습니다.', 'error');
+            event.target.value = '';
+        };
+
+        reader.readAsText(file);
     }
 
     // ========================================

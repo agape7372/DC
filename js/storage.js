@@ -300,6 +300,81 @@ const Storage = (function () {
     }
 
     // ========================================
+    // 백업/복원
+    // ========================================
+
+    /**
+     * 모든 데이터를 JSON으로 내보내기
+     * @returns {string} - JSON 문자열
+     */
+    function exportData() {
+        const data = {
+            version: '1.0',
+            exportDate: new Date().toISOString(),
+            therapists: getTherapists(),
+            patients: getPatients(),
+            settings: getSettings()
+        };
+        return JSON.stringify(data, null, 2);
+    }
+
+    /**
+     * JSON 데이터를 가져와서 localStorage에 저장
+     * @param {string} jsonString - JSON 문자열
+     * @returns {{success: boolean, message: string}}
+     */
+    function importData(jsonString) {
+        try {
+            const data = JSON.parse(jsonString);
+
+            // 데이터 검증
+            if (!data || typeof data !== 'object') {
+                return { success: false, message: '잘못된 백업 파일 형식입니다.' };
+            }
+
+            // 버전 확인 (선택)
+            if (data.version !== '1.0') {
+                console.warn('다른 버전의 백업 파일:', data.version);
+            }
+
+            // 데이터 복원
+            let restored = 0;
+
+            if (data.therapists) {
+                if (setTherapists(data.therapists)) {
+                    restored++;
+                }
+            }
+
+            if (data.patients) {
+                if (setPatients(data.patients)) {
+                    restored++;
+                }
+            }
+
+            if (data.settings) {
+                if (setSettings(data.settings)) {
+                    restored++;
+                }
+            }
+
+            if (restored === 0) {
+                return { success: false, message: '복원할 데이터가 없습니다.' };
+            }
+
+            const exportDate = data.exportDate ? new Date(data.exportDate).toLocaleString('ko-KR') : '알 수 없음';
+            return {
+                success: true,
+                message: `백업 데이터를 성공적으로 복원했습니다.\n백업 일시: ${exportDate}`
+            };
+
+        } catch (error) {
+            console.error('데이터 복원 오류:', error);
+            return { success: false, message: '백업 파일을 읽을 수 없습니다: ' + error.message };
+        }
+    }
+
+    // ========================================
     // Public API
     // ========================================
 
@@ -325,6 +400,10 @@ const Storage = (function () {
         updateSetting,
 
         // 전체
-        clearAll
+        clearAll,
+
+        // 백업/복원
+        exportData,
+        importData
     };
 })();
