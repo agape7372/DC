@@ -233,8 +233,16 @@ function isOccupationalTherapyCode(code) {
  * @returns {boolean}
  */
 function isEvaluationCode(code) {
-    const upperCode = code.toUpperCase().replace(/\d+$/, '');
-    return ALL_EVALUATION_CODES.some(c => c.toUpperCase() === upperCode);
+    const upperCode = code.toUpperCase();
+
+    // 1차: 원본 코드 그대로 체크 (PHQ-9 같은 하이픈 포함 코드)
+    if (ALL_EVALUATION_CODES.some(c => c.toUpperCase() === upperCode)) {
+        return true;
+    }
+
+    // 2차: 끝의 숫자 제거 후 체크 (ROM2 → ROM)
+    const codeWithoutNum = upperCode.replace(/\d+$/, '');
+    return ALL_EVALUATION_CODES.some(c => c.toUpperCase() === codeWithoutNum);
 }
 
 /**
