@@ -404,120 +404,95 @@ const Parser = (function () {
         // 가산오류 플래그 체크
         const hasExtraError = PATTERNS.EXTRA_ERROR.test(trimmedLine);
 
-        // 구분자 감지 및 분리
-        const delimiter = detectDelimiter(trimmedLine);
-        let fields;
-        if (typeof delimiter === 'string') {
-            fields = trimmedLine.split(delimiter).map(f => f.trim()).filter(f => f);
-        } else {
-            fields = trimmedLine.split(delimiter).map(f => f.trim()).filter(f => f);
-        }
+        // ========================================
+        // 토큰 기반 순차 파싱 (구분자 독립적)
+        // ========================================
 
-        // 필드 분류
+        // 1. 전처리: "님" 제거, 구분자 통일, 괄호 분리
+        let normalized = trimmedLine
+            .replace(/님/g, '')              // "님" 제거
+            .replace(/[\/:\t]+/g, ' ')      // 구분자를 공백으로
+            .replace(/\(/g, ' (')           // 여는 괄호 앞에 공백
+            .replace(PATTERNS.EXTRA_ERROR, '')  // 가산오류 텍스트 제거
+            .trim();
+
+        // 2. 토큰 분리
+        const tokens = normalized.split(/\s+/).filter(t => t);
+
+        console.log('[토큰 파싱]', {line: trimmedLine, normalized, tokens});
+
+        // 3. 순차적으로 토큰 분류
         let patient = null;
         let orderCodes = [];
         let time = null;
         let therapist = null;
 
-        // 이름 두 개 연속 감지 (치료사/환자 또는 치료사:환자 형식)
-        // "/" 또는 ":" 구분자일 때 적용
-        if ((delimiter === '/' || delimiter === ':') && fields.length >= 2) {
-            const cleanFirst = fields[0].replace(PATTERNS.EXTRA_ERROR, '').trim();
-            const cleanSecond = fields[1].replace(PATTERNS.EXTRA_ERROR, '').trim();
+        for (const token of tokens) {
+            // 빈 토큰 제외
+            if (!token) continue;
 
-            // 두 번째 필드에서 이름 부분만 추출 (뒤에 다른 구분자가 있을 수 있음)
-            // 예: "한효준님: RG2" → "한효준님"
-            const secondNameOnly = cleanSecond.split(/[\s:\/]+/)[0];
-
-            // "님" 제거 후 검증
-            const normalizedFirst = normalizeName(cleanFirst);
-            const normalizedSecond = normalizeName(secondNameOnly);
-
-            // 이름 패턴: 한글 2-4자 + 선택적 숫자 (동명이인)
-            const namePattern = /^[가-힣]{2,4}\d*$/;
-            const firstIsName = namePattern.test(normalizedFirst) && !isOrderCodePattern(normalizedFirst);
-            const secondIsName = namePattern.test(normalizedSecond) && !isOrderCodePattern(normalizedSecond);
-
-            if (firstIsName && secondIsName) {
-                // 이름 두 개 연속: 첫 번째는 치료사, 두 번째는 환자
-                therapist = normalizedFirst;
-                patient = normalizedSecond;
-
-                // 두 번째 필드에서 이름 부분 제거 후 나머지 유지
-                // 예: "김점자님: RG2(08:30-09:00)" → ": RG2(08:30-09:00)" → "RG2(08:30-09:00)"
-                const afterName = cleanSecond.substring(secondNameOnly.length).trim();
-                const cleanedAfterName = afterName.replace(/^[:\s\/]+/, '').trim();
-
-                if (cleanedAfterName) {
-                    // 첫 번째 필드 제거, 두 번째 필드를 cleanedAfterName으로 교체, 나머지 필드 유지
-                    fields = [cleanedAfterName, ...fields.slice(2)];
-                } else {
-                    // 이름만 있었던 경우 (예: "최예원/김정원7/N")
-                    fields = fields.slice(2);
-                }
-            }
-            // 이름이 하나만 있는 경우는 아래 for loop에서 환자로 처리됨
-        }
-
-        for (const field of fields) {
-            // 가산오류 텍스트 제거
-            const cleanField = field.replace(PATTERNS.EXTRA_ERROR, '').trim();
-            if (!cleanField) continue;
-
-            // 1. 시간 패턴?
-            if (isTimePattern(cleanField)) {
-                time = normalizeTime(cleanField);
+            // 1. 시간 패턴? (괄호 포함: (08:30-09:00))
+            if (isTimePattern(token) || /^\([\d:-]+\)$/.test(token)) {
+                const cleanTime = token.replace(/[()]/g, '');
+                time = normalizeTime(cleanTime);
+                console.log('[시간 인식]', {token, cleanTime, time});
                 continue;
             }
 
-            // 2. 필드를 공백/콤마로 분리해서 개별 분석
-            const subParts = cleanField.split(/[,\s]+/).filter(c => c);
+            // 2. 오더 코드?
+            if (isOrderCodePattern(token)) {
+                const codes = splitOrderCodes(token);
+                orderCodes.push(...codes);
+                console.log('[오더 인식]', {token, codes});
+                continue;
+            }
 
-            for (const part of subParts) {
-                // 시간 패턴?
-                if (isTimePattern(part)) {
-                    time = normalizeTime(part);
-                    continue;
-                }
-
-                // 오더 코드?
-                if (isOrderCodePattern(part)) {
-                    orderCodes.push(...splitOrderCodes(part));
-                    continue;
-                }
-
-                // 환자명?
-                if (!patient && isPatientName(part)) {
-                    patient = normalizeName(part);
-                    continue;
-                }
-
-                // 한글 2-4자(+동명이인 숫자)면 이름으로 추정
-                const normalizedPart = normalizeName(part);
-                if (/^[가-힣]{2,4}\d*$/.test(normalizedPart)) {
-                    if (!patient) {
-                        patient = normalizedPart;
-                    } else if (!therapist) {
-                        therapist = normalizedPart;
-                    }
-                    continue;
-                }
-
-                // 그 외는 치료사로 저장
+            // 3. 이름 패턴? (한글 2-4자 + 선택적 숫자)
+            const namePattern = /^[가-힣]{2,4}\d*$/;
+            if (namePattern.test(token) && !isOrderCodePattern(token)) {
                 if (!therapist) {
-                    therapist = normalizeName(part);
+                    therapist = token;
+                    console.log('[치료사 인식]', token);
+                } else if (!patient) {
+                    patient = token;
+                    console.log('[환자 인식]', token);
                 }
+                continue;
+            }
+
+            // 4. 등록된 환자명?
+            if (!patient && isPatientName(token)) {
+                patient = token;
+                console.log('[등록된 환자 인식]', token);
+                continue;
             }
         }
 
+        // 이름이 하나만 있으면 환자로 처리 (치료사는 선택사항)
+        if (therapist && !patient) {
+            patient = therapist;
+            therapist = null;
+            console.log('[이름 하나 → 환자로 처리]', {patient});
+        }
+
         // 유효성 검사: 환자명 + 오더코드 필수
+        console.log('[파싱 최종 결과]', {
+            line: trimmedLine,
+            therapist,
+            patient,
+            orderCodes,
+            time
+        });
+
         if (!patient) {
             result.error = `환자명을 찾을 수 없습니다: "${trimmedLine}"`;
+            console.error('[파싱 실패 - 환자명 없음]', trimmedLine);
             return result;
         }
 
         if (orderCodes.length === 0) {
             result.error = `오더 코드를 찾을 수 없습니다: "${trimmedLine}"`;
+            console.error('[파싱 실패 - 오더코드 없음]', {patient, therapist, tokens});
             return result;
         }
 
